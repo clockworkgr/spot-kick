@@ -17,7 +17,7 @@
 export const SIM = {
   DT: 0.001,          // fixed integration step: 1 kHz
   RECORD_EVERY: 4,    // store a render frame every 4 steps (250 Hz)
-  KEEPER_BLOCK: 10,   // steps per keeper step: it moves at 100 Hz (see keeperBlock)
+  KEEPER_BLOCK: 20,   // steps per keeper step: it moves at 50 Hz (see keeperBlock)
   BALL_BLOCK: 5,      // steps per ball step in free flight (see freeFlight)
   MAX_T: 2.5,         // hard cap on simulated time before a verdict is forced (bounds the on-chain cost)
   G: 9.81,
@@ -103,7 +103,7 @@ export const KEEPER = {
   // predicts its crossing point with straight-line-plus-gravity extrapolation
   // (no spin, no drag), so it is deterministic and curl can still fool it.
   PERCEIVE: 0.16,     // from this long after contact the hands steer towards the predicted point
-  READ_EVERY: 10,     // steps between the keeper's reads of the ball (100 Hz); it acts on its last read in between
+  READ_EVERY: 20,     // steps between the keeper's reads of the ball (50 Hz); it acts on its last read in between
   ARM_TRACK_RATE: 12,
   READ_BASE: 0.16,    // a "read" plan commits at READ_BASE + plan.reaction
   READ_REACH: 0.75,   // lateral distance the arms cover (x SCALE), so a read dive only carries the hips the rest
@@ -592,14 +592,17 @@ function armsAboveGround(k) {
 }
 
 // The lean and the arms are unit vectors that each step moves at most a
-// tenth or so of the way towards a unit target. Such a blend is within a
-// quarter of unit length, and two Newton steps towards 1/length
-// (g = 1.5 - 0.5 |v|^2) bring it back to within a per cent at worst and a
+// quarter or so of the way towards a unit target. Such a blend can fall to
+// about half of unit length, and three Newton steps towards 1/length
+// (g = 1.5 - 0.5 |v|^2) bring it back to within two per cent at worst and a
 // millionth typically, without a square root.
 function nlerp2(a, b, f) {
   let s = a.s + (b.s - a.s) * f;
   let c = a.c + (b.c - a.c) * f;
   let g = 1.5 - 0.5 * (s * s + c * c);
+  s *= g;
+  c *= g;
+  g = 1.5 - 0.5 * (s * s + c * c);
   s *= g;
   c *= g;
   g = 1.5 - 0.5 * (s * s + c * c);
@@ -611,6 +614,10 @@ function blendUnit(a, b, f) {
   let y = a.y + (b.y - a.y) * f;
   let z = a.z + (b.z - a.z) * f;
   let g = 1.5 - 0.5 * (x * x + y * y + z * z);
+  x *= g;
+  y *= g;
+  z *= g;
+  g = 1.5 - 0.5 * (x * x + y * y + z * z);
   x *= g;
   y *= g;
   z *= g;
@@ -838,7 +845,7 @@ export function keeperPose(k) {
   };
 }
 
-// The keeper moves at 100 Hz: blocks of SIM.KEEPER_BLOCK steps, each one
+// The keeper moves at 50 Hz: blocks of SIM.KEEPER_BLOCK steps, each one
 // keeper step of that length taken at the block's start, from pose A (the
 // block's start) to pose B (its end). A block in which its plan commits is a
 // single millisecond instead, so the reaction time keeps 1 ms precision.
@@ -1325,7 +1332,7 @@ function collideCapsule(b, a, bb, r, va, vb, e, mu, spinKeep, give = Infinity) {
 // touch the ball only within about 2.0 m of the hip (the farthest part is a
 // glove, 1.29 x SCALE from it, plus 0.35 m of collision margin and reaction
 // reach, plus the ball's radius: 1.97 m; the hip used is the block's end
-// pose, at most 7 cm from the interpolated one), so contacts are checked from
+// pose, at most 14 cm from the interpolated one), so contacts are checked from
 // PROBE out. Posts and bar are only checked within a centimetre of reach
 // (nearFrame). Skipping these
 // checks where they would find nothing leaves every result unchanged.

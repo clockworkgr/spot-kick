@@ -156,10 +156,10 @@ on chain as `gno-shots-realm/…/penalty/physics/v0`, bit for bit — see *On-ch
 - **Reading the shot** (deterministic): the keeper only uses the simulated ball state.
   It predicts where the ball will cross its plane (straight line + gravity + drag and
   rolling resistance, but no spin, so curl can fool it) with only `+ − × ÷ √`, re-reading
-  the ball every 10 ms (100 Hz) and acting on its latest read in between. The keeper moves
-  at 100 Hz too (1 ms in the step where its plan commits, so reaction keeps 1 ms precision);
-  the ball, still at 1 kHz, meets body shapes interpolated between the keeper's 10 ms poses,
-  and the replay draws the interpolated pose. Lean and arms are re-normalised with two
+  the ball every 20 ms (50 Hz) and acting on its latest read in between. The keeper moves
+  at 50 Hz too (1 ms in the step where its plan commits, so reaction keeps 1 ms precision);
+  the ball, still at 1 kHz, meets body shapes interpolated between the keeper's 20 ms poses,
+  and the replay draws the interpolated pose. Lean and arms are re-normalised with three
   Newton steps instead of a square root.
   - From 0.16 s after contact its hands steer towards that point.
   - A *read* plan commits at 0.16 s + reaction: a dive sized to reach the predicted
@@ -208,7 +208,7 @@ on chain as `gno-shots-realm/…/penalty/physics/v0`, bit for bit — see *On-ch
   would otherwise still have gone in.)
 - **Work skipped where it cannot matter** (`ZONES`): keeper contacts only within 2.2 m of the
   keeper's hip (no part reaches beyond 1.97 m) and each part only near the box it sweeps in a
-  10 ms block; posts and bar only near the line. Results are identical with or without them;
+  20 ms block; posts and bar only near the line. Results are identical with or without them;
   the on-chain port relies on them for gas.
 - **Determinism**: inside the loop only `+ − × ÷`, `sqrt`, `min/max/abs/round` and
   `imul` are used. These are exactly rounded in IEEE-754, and the dive angle goes through
