@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Spot Kick · Visual review</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<style>body{margin:0;background:#101724;color:#eef3fb;font:14px system-ui}canvas{display:block}nav{position:absolute;top:12px;left:12px;right:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#0d1520dc;padding:12px;border-radius:10px}button,input{cursor:pointer}button{padding:8px;color:white;background:#263b4e;border:1px solid #637b8a;border-radius:4px}output{font-size:12px}</style>
+<nav><button data-view="game">Game view</button><button data-view="taker">Taker</button><button data-view="keeper">Keeper</button><button data-view="face">Taker face</button><button data-view="keeperface">Keeper face</button><button data-view="hand">Hand detail</button><button data-view="catchdetail">Keeper hands</button><button data-view="stadium">Stadium</button><button data-view="side">Side</button><button id="cheer">Crowd reaction</button><label>Sequence <select id="sequence"><option value="seeded">Seed 123</option><option value="high">High dive right</option><option value="low">Low dive left</option><option value="star">Star jump</option><option value="recovery">Ground recovery</option><option value="redive">Recovery and second dive</option><option value="goal">Goal celebration</option><option value="save">Save reaction</option><option value="miss">Miss reaction</option><option value="catch">Two-hand catch</option><option value="onehand">One-hand gather</option><option value="catchlow">Low diving catch</option><option value="catchchest">Chest catch</option><option value="parry">Fast parry</option><option value="regather">Parry then catch</option><option value="footgather">Gather at the feet</option><option value="armgather">Gather in the arms</option><option value="singleparry">One-hand controlled parry</option><option value="givearm">Arm gives way</option><option value="giveglove">Glove gives way</option><option value="giveleg">Airborne leg gives way</option><option value="bodyblock">Torso block</option></select></label><button id="play">Play</button><label>Speed <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select></label><label>Contact time <input id="time" type="range" min="-0.85" max="12" step="0.01" value="-0.85"></label><output id="info"></output></nav>
+<script type="module">
+import * as THREE from 'three';
+import {buildWorld} from '../src/scene.js';
+import {Humanoid} from '../src/rig.js?v=4';
+import {keeperPose,takerPose,takerGeometry,createCatchAnimation,createKeeperAnimation} from '../src/animation.js?v=4';
+import * as P from '../src/physics.js';
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(46,innerWidth/innerHeight,0.05,400),world=buildWorld(scene,renderer);
+const keeper=new Humanoid({scale:P.KEEPER.SCALE,kit:{shirt:0x12b39b,sleeve:0x0c7f70,longSleeves:true,shorts:0x15171c,socks:0x12b39b,boots:0x16181d,skin:0xc58c62,hair:0x2a1a10,gloves:0xf2f5f8,gloveStrap:0x12b39b,number:'1',numberColor:'#15171c'}});
+const taker=new Humanoid({scale:1,kit:{shirt:0xf2f4f8,sleeve:0x1d3f8f,shorts:0x1d3f8f,socks:0xf2f4f8,boots:0xff2e7a,skin:0xe0ac85,hair:0x5a3a20,number:'10',numberColor:'#1d3f8f'}});scene.add(keeper.group,taker.group);
+const round=P.decodeRound(P.roundBytesFromSeed(123,0));let sim=P.simulateShot({aim:{x:1.6,y:1.1},contact:{x:0,y:-0.15},power:0.75,seed:round.strikeSeed},round.plan);
+const makeShot=(aim,power,plan)=>P.simulateShot({aim,contact:{x:0,y:-.15},power,seed:round.strikeSeed},plan);
+const scenarios={seeded:{shot:sim},
+ high:{shot:makeShot({x:2.7,y:1.8},.85,{direction:.05,speed:4.6,jump:3.7,reaction:.07,mode:'dive'})},
+ low:{shot:makeShot({x:-2.7,y:.25},.75,{direction:179.95,speed:4.4,jump:-.8,reaction:.07,mode:'dive'})},
+ star:{shot:makeShot({x:.2,y:1.8},.8,{direction:0,speed:.3,jump:3.4,reaction:.07,mode:'star'})},
+ goal:{shot:makeShot({x:-2.7,y:1.3},.8,{direction:0,speed:4.3,jump:1.8,reaction:.07,mode:'dive'}),outcome:'goal'},
+ save:{shot:makeShot({x:0,y:.9},.25,{direction:0,speed:0,jump:1,reaction:.07,mode:'read'}),outcome:'save'},
+ miss:{shot:makeShot({x:4,y:1.2},.7,{direction:180,speed:3.5,jump:.6,reaction:.07,mode:'dive'}),outcome:'miss'}};
+const landing=scenarios.low.shot.frames.findIndex(f=>f.t>.35&&f.k.lean.c<.2&&f.k.pos.y<.48);
+scenarios.recovery={shot:{...scenarios.low.shot,frames:scenarios.low.shot.frames.slice(0,landing+1),events:scenarios.low.shot.events.filter(e=>e.t<=scenarios.low.shot.frames[landing].t),result:{...scenarios.low.shot.result,decidedAt:scenarios.low.shot.frames[landing].t,outcome:'save'}},outcome:'save'};
+const stay={direction:90,speed:0,jump:0,reaction:.06};
+const catchShot=(aim,power,plan=stay)=>P.simulateShot({aim,contact:{x:0,y:0},power},plan);
+scenarios.catch={shot:catchShot({x:.05,y:2.2},.45)};
+scenarios.catchlow={shot:catchShot({x:-2,y:.25},.3)};
+
+scenarios.parry={shot:catchShot({x:.05,y:1.8},1)};
+scenarios.regather={shot:catchShot({x:.3,y:1.8},.6)};
+const roundCase=(i,input,plan=null)=>{
+ const round=P.decodeRound(P.roundBytesFromSeed(11,i));
+ return {shot:P.simulateShot({...input,seed:round.strikeSeed},plan||round.plan)};
+};
+scenarios.onehand=roundCase(7,{aim:{x:1.4638965710997582,y:2.1187798384111374},contact:{x:-.026930161274503917,y:.012391991540789606},power:.08131176279857755});
+scenarios.catchchest=roundCase(1099,{aim:{x:-1.8076051935553552,y:.15104211773723364},contact:{x:.21937646915903317,y:.17592178601771594},power:.2737147712614387});
+scenarios.armgather=roundCase(2239,{aim:{x:2.343323861062527,y:.5078946376219392},contact:{x:.13312949534738436,y:.16897687325254085},power:.5449028133880347});
+scenarios.singleparry=roundCase(266773,{aim:{x:-2.395880236836383,y:.2640368801024742},contact:{x:-.06316093252941467,y:.18517956979929417},power:.2286553776357323});
+scenarios.giveglove=roundCase(1026,{aim:{x:.8422400429844856,y:1.0895387296564878},contact:{x:-.06667428275104613,y:-.19908534651622178},power:.9432176356203854},stay);
+scenarios.giveleg=roundCase(16,{aim:{x:.6561899766325952,y:1.383293920662254},contact:{x:.10342189898947254,y:.10503530129790306},power:.8278754602652043});
+scenarios.bodyblock=roundCase(29,{aim:{x:-1.6592706441879272,y:1.4205178998410701},contact:{x:.16369295673212036,y:-.1091565614566207},power:.8621459694113582});
+scenarios.givearm={shot:P.simulateShot({aim:{x:2.2,y:1.2},contact:{x:0,y:-.1},power:1},{direction:8,speed:4.5,jump:2.5,reaction:.04})};
+scenarios.footgather={shot:catchShot({x:.15,y:.2},0)};
+scenarios.redive={shot:P.simulateShot({aim:{x:-1.2,y:.6},contact:{x:0,y:0},power:.1},{direction:8,speed:3,jump:-1,reaction:.06})};
+scenarios.rediveright={shot:P.simulateShot({aim:{x:1.2,y:.6},contact:{x:0,y:0},power:.1},{direction:172,speed:3,jump:-1,reaction:.06})};
+const rightOption=document.createElement('option');rightOption.value='rediveright';rightOption.textContent='Recovery and second dive right';document.querySelector('#sequence').add(rightOption,6);
+const catchStates=new Map(Object.values(scenarios).map(({shot})=>[shot,createCatchAnimation(shot)]));
+const catchFor=shot=>catchStates.get(shot);
+const motionStates=new Map(Object.values(scenarios).map(({shot})=>[shot,createKeeperAnimation(shot)]));
+const motionFor=shot=>motionStates.get(shot);
+// These labels describe actual outcomes from the current engine, rather than
+// shots which used to catch before its thresholds and limb strength changed.
+for(const [name,method] of Object.entries({catch:'twohand',onehand:'onehand',catchchest:'chest',armgather:'arms',footgather:'feet'})){
+ if(catchFor(scenarios[name].shot)?.method!==method)throw new Error('Review fixture no longer exercises '+method);
+}
+for(const [name,kind] of Object.entries({givearm:'arm',giveglove:'glove',giveleg:'leg'})){
+ if(!scenarios[name].shot.result.contacts.some(c=>c.gaveWay&&c.kind===kind))throw new Error('Review fixture no longer exercises giving '+kind);
+}
+if(!scenarios.singleparry.shot.result.contacts.some(c=>c.decision==='parry'&&!c.gaveWay&&c.how.startsWith('one-handed')))throw new Error('Controlled parry fixture changed');
+if(scenarios.regather.shot.result.contacts[0].decision!=='parry'||scenarios.regather.shot.result.contacts.at(-1).decision!=='catch')throw new Error('Regather fixture changed');
+let selected='seeded';
+const original=JSON.stringify(sim);let checked=0,maxStretch=0,minSole=Infinity,keeperStretch=0,moodStretch=0,maxJointStep=0,contactError=0,minFreeSkin=Infinity,maxKeeperStep=0,minSkinTag='',stretchTag='',activeCase='seeded',maxPalmError=0,minFingerGap=Infinity,minGloveGap=Infinity,minGloveTag='',minShirtGap=Infinity,minShirtTag='',catchChecks=0,minSupportGlove=Infinity;
+function checkRig(rig,t){
+ rig.group.updateMatrixWorld(true);rig.skeleton.update();
+ for(const [name,b] of Object.entries(rig.joints))if(/^(upper|fore|thigh|shin)\./.test(name)&&rig===keeper){if(b.scale.y>keeperStretch)stretchTag=activeCase+' '+name+' @ '+t.toFixed(3);keeperStretch=Math.max(keeperStretch,b.scale.y);}
+ if(rig===taker){
+  for(const [name,b] of Object.entries(rig.joints))if(/^(upper|fore|thigh|shin)\./.test(name))maxStretch=Math.max(maxStretch,b.scale.y);
+  }
+ for(const leg of rig.legs)for(const x of [-.05,.05])for(const z of [-.075,.226]){
+   const sole=new THREE.Vector3(x,-.093,z).multiplyScalar(rig.S).applyMatrix4(leg.boot.matrixWorld);minSole=Math.min(minSole,sole.y);
+  }
+
+ if(!rig.skeleton.boneMatrices.every(Number.isFinite))throw new Error('Non-finite skin matrix at '+t);
+ rig.group.traverse(o=>{if(!o.matrixWorld.elements.every(Number.isFinite))throw new Error('Non-finite visual transform at '+t)});
+ const sample=new THREE.Vector3();
+ for(const mesh of rig.meshes){
+  const pos=mesh.geometry.attributes.position;
+  for(let i=0;i<pos.count;i+=Math.max(1,Math.floor(pos.count/16))){sample.fromBufferAttribute(pos,i);mesh.applyBoneTransform(i,sample);if(!sample.toArray().every(Number.isFinite))throw new Error('Non-finite skinned vertex at '+t);}
+ }
+}
+for(const rig of [keeper,taker])for(const mesh of rig.meshes){
+ const g=mesh.geometry,weight=g.attributes.skinWeight,index=g.attributes.skinIndex;
+ for(let i=0;i<weight.count;i++){
+  let sum=0;for(let k=0;k<4;k++){sum+=weight.array[i*4+k];if(index.array[i*4+k]>=rig.skeleton.bones.length)throw new Error('Invalid skin joint');}
+  if(Math.abs(sum-1)>1e-5)throw new Error('Invalid skin weight sum');
+ }
+ for(const a of Object.values(g.attributes))if(!a.array.every(Number.isFinite))throw new Error('Non-finite geometry attribute');
+}
+
+for(const [fi,f] of sim.frames.entries()){
+ const t=f.t,ball=new THREE.Vector3().fromArray(f.b);
+ const kvx=fi ? (f.k.pos.x-sim.frames[fi-1].k.pos.x)/(t-sim.frames[fi-1].t) : 0;
+ const kp=keeperPose({k:f.k,t,clock:t+1,ball,kvx,plan:sim.plan,catchState:catchFor(sim),motionState:motionFor(sim),endT:sim.frames.at(-1).t,endK:sim.frames.at(-1).k});
+ keeper.setPose(kp);taker.setPose(takerPose({t,clock:t+1,launch:sim.launch,ball}));
+ for(const rig of [keeper,taker])checkRig(rig,t);
+ const caps=P.keeperCapsules(f.k),left=caps.find(c=>c.name==='right glove').a,right=caps.find(c=>c.name==='left glove').a;
+ if(!f.held && kp.physicsReachWeight===1 && (kp.hands.l.distanceTo(new THREE.Vector3(left.x,left.y,left.z))>1e-9||kp.hands.r.distanceTo(new THREE.Vector3(right.x,right.y,right.z))>1e-9))throw new Error('Visual glove left its recorded collision centre');
+ checked++;
+}
+for(let i=0;i<=85;i++){
+ const t=-.85+i*.01,f=sim.frames[0],ball=new THREE.Vector3().fromArray(f.b);
+ keeper.setPose(keeperPose({k:f.k,t,clock:t+1,ball,plan:sim.plan}));taker.setPose(takerPose({t,clock:t+1,launch:sim.launch,ball}));
+ for(const rig of [keeper,taker])checkRig(rig,t);checked++;
+}
+// Ready arms must bend forward from a lower elbow, rather than form the
+// physics capsule's wide, almost straight reach before the shot.
+for(const clock of [0,.5,1,2,3]){
+ const f=sim.frames[0],ball=new THREE.Vector3().fromArray(f.b);
+ const pose=keeperPose({k:f.k,t:null,clock,ball,plan:sim.plan});keeper.setPose(pose);checkRig(keeper,clock);
+ if(pose.hands.l.distanceTo(pose.hands.r)>.85*keeper.S)throw new Error('Ready hands spread too wide');
+ for(const side of ['L','R']){
+  const shoulder=keeper.joints['upper.'+side].position,elbow=keeper.joints['fore.'+side].position,wrist=keeper.joints['hand.'+side].position;
+  const upper=elbow.clone().sub(shoulder),fore=wrist.clone().sub(elbow),flex=upper.angleTo(fore);
+  if(elbow.y>shoulder.y-.12*keeper.S || wrist.z<elbow.z+.08*keeper.S || flex<.4 || flex>2.5)throw new Error('Unnatural ready elbow '+side);
+  const fingers=new THREE.Vector3(0,1,0).applyQuaternion(keeper.joints['hand.'+side].quaternion);
+  if(fingers.angleTo(fore)>.3)throw new Error('Ready wrist drooped away from forearm '+side);
+ }
+ checked++;
+}
+// Sample the kick sequentially to catch joint flips, and at varied aim/contact
+// keys to verify the captured foot still reaches the simulator's contact.
+let previous=null;
+for(let i=0;i<=170;i++){
+ const t=-.85+i*.01,ball=new THREE.Vector3().fromArray(sim.frames[0].b);
+ taker.setPose(takerPose({t,clock:t+1,launch:sim.launch,ball}));checkRig(taker,t);
+ const rotations=Object.fromEntries(Object.entries(taker.joints).filter(([n])=>/^(upper|fore|thigh|shin)\./.test(n)).map(([n,b])=>[n,b.quaternion.clone()]));
+ if(previous)for(const [n,q] of Object.entries(rotations))maxJointStep=Math.max(maxJointStep,q.angleTo(previous[n]));
+ previous=rotations;checked++;
+}
+let idleFeet=null;
+for(const x of [-3,0,3])for(const y of [.2,1.1,2.3]){
+ const shot=P.simulateShot({aim:{x,y},contact:{x:.15,y:.1},power:.85,seed:round.strikeSeed},round.plan);
+ const ball=new THREE.Vector3().fromArray(shot.frames[0].b);
+ const idle=takerPose({t:null,clock:1,launch:shot.launch,ball});
+ if(idleFeet && (idle.feet.l.distanceTo(idleFeet.l)>1e-9||idle.feet.r.distanceTo(idleFeet.r)>1e-9))throw new Error('Aiming moved the idle feet');
+ idleFeet=idle.feet;
+ taker.setPose(takerPose({t:0,clock:1,launch:shot.launch,ball}));checkRig(taker,0);
+ contactError=Math.max(contactError,taker.legs[1].boot.position.distanceTo(takerGeometry(shot.launch).strike));checked++;
+}
+if(contactError>1e-6)throw new Error('Captured strike missed the contact key: '+contactError);
+// During a shuffle stance, the planted foot should stay at one world foothold.
+let foothold=null;
+for(const x of [.06,.08,.10,.12]){
+ const k=structuredClone(sim.frames[0].k);k.pos.x=x*P.KEEPER.SCALE;k.lean={s:0,c:1};
+ const pose=keeperPose({k,t:0,clock:1,kvx:1,ball:new THREE.Vector3().fromArray(sim.frames[0].b),plan:sim.plan});
+ if(foothold!==null && Math.abs(pose.feet.l.x-foothold)>1e-9)throw new Error('Keeper stance foot skated');
+ if(pose.pelvis.distanceTo(new THREE.Vector3(k.pos.x,k.pos.y,k.pos.z))>1e-9)throw new Error('Shuffle changed recorded pelvis');
+ foothold=pose.feet.l.x;checked++;
+}
+// Check cosmetic recovery and reaction poses independently of the simulation.
+for(const outcome of ['goal','save','miss','woodwork'])for(let i=0;i<=120;i++){
+ const t=sim.frames.at(-1).t+i*.05,ball=new THREE.Vector3().fromArray(sim.frames.at(-1).b);
+ keeper.setPose(keeperPose({k:sim.frames.at(-1).k,t,clock:t+1,ball,outcome,plan:sim.plan,endT:sim.frames.at(-1).t,endK:sim.frames.at(-1).k}));
+ taker.setPose(takerPose({t,clock:t+1,launch:sim.launch,ball,outcome,decidedAt:sim.frames.at(-1).t}));
+ for(const rig of [keeper,taker]){checkRig(rig,t);for(const [n,b] of Object.entries(rig.joints))if(/^(upper|fore|thigh|shin)\./.test(n))moodStretch=Math.max(moodStretch,b.scale.y);}checked++;
+}
+for(const [name,{shot,outcome}] of Object.entries(scenarios)){
+ activeCase=name;const frozen=JSON.stringify(shot),frozenCatch=JSON.stringify(catchFor(shot)),frozenMotion=JSON.stringify(motionFor(shot)),end=shot.frames.at(-1);let previousKeeper=null,previousChest=null,largest=0,worst='',axisInfo='';
+ for(let t=-.85;t<=end.t+6;t+=.025){
+  const f=sampleFrame(shot,Math.max(0,t)),ball=new THREE.Vector3().fromArray(f.b);
+  const earlier=sampleFrame(shot,Math.max(0,t-.03));
+  const kvx=t>.03?(f.k.pos.x-earlier.k.pos.x)/.03:0;
+  const kp=keeperPose({k:f.k,t,clock:t+1,kvx,ball,plan:shot.plan,catchState:catchFor(shot),motionState:motionFor(shot),outcome:outcome||shot.result.outcome,endT:end.t,endK:end.k});
+  keeper.setPose(kp);taker.setPose(takerPose({t,clock:t+1,launch:shot.launch,ball,outcome:outcome||shot.result.outcome,decidedAt:shot.result.decidedAt}));
+  for(const rig of [keeper,taker])checkRig(rig,t);
+  if(t<=end.t && t>=0 && kp.physicsReachWeight===1 && !(catchFor(shot) && t>=catchFor(shot).t)){
+   const caps=P.keeperCapsules(f.k);
+   for(const [i,n] of [[0,'right glove'],[1,'left glove']]){
+    const target=caps.find(c=>c.name===n).a;
+    if(keeper.arms[i].hand.position.distanceTo(new THREE.Vector3(target.x,target.y,target.z))>1e-9)throw new Error('Visible glove drifted in '+name);
+   }
+  }
+  if(kp.ballPosition){
+   if(kp.ballPosition.y<P.BALL.R-1e-8)throw new Error('Held ball crossed turf in '+name);
+   if(!kp.ballRotation.toArray().every(Number.isFinite))throw new Error('Non-finite held ball rotation');
+   for(const [key,side] of [['l','L'],['r','R']])if(kp.ballGrip.weight[key]>.99999){
+    const hand=keeper.joints['hand.'+side];
+    const centre=keeper.palmOffset[side].clone().applyQuaternion(keeper.bindRotation['hand.'+side].clone().invert()).applyQuaternion(hand.quaternion).add(hand.position);
+    const error=centre.distanceTo(kp.hands[key]);maxPalmError=Math.max(maxPalmError,error);
+    if(error>1e-5)throw new Error('Palm detached from ball in '+name+': '+error);
+    for(let finger=1;finger<=5;finger++)for(let segment=1;segment<=3;segment++){
+     const bone=keeper.joints[`finger${finger}-${segment}.${side}`],rest=keeper.rest[bone.name];
+     const tip=bone.position.clone().add(new THREE.Vector3(0,rest.length,0).applyQuaternion(bone.quaternion));
+     const delta=tip.sub(bone.position),offset=kp.ballPosition.clone().sub(bone.position);
+     const u=THREE.MathUtils.clamp(offset.dot(delta)/delta.lengthSq(),0,1);
+     const gap=bone.position.clone().addScaledVector(delta,u).distanceTo(kp.ballPosition)-P.BALL.R;
+     minFingerGap=Math.min(minFingerGap,gap);
+     if(gap<.005*keeper.S)throw new Error('Finger entered ball in '+name+': '+gap);
+    }
+   }
+   if(Object.values(kp.ballGrip.weight).every(w=>w>.99999)){
+    const mesh=keeper.meshes[4],pos=mesh.geometry.attributes.position;
+    for(let i=0;i<pos.count;i+=7){const v=new THREE.Vector3().fromBufferAttribute(pos,i);mesh.applyBoneTransform(i,v);const gap=v.distanceTo(kp.ballPosition)-P.BALL.R;if(gap<minGloveGap){minGloveGap=gap;minGloveTag=name+' @ '+t.toFixed(3)+' vertex '+i+' joint '+keeper.skeleton.bones[mesh.geometry.attributes.skinIndex.getX(i)].name;}}
+   }
+   if(t>catchFor(shot).t+.45){
+    const mesh=keeper.meshes[1],pos=mesh.geometry.attributes.position;
+    for(let i=0;i<pos.count;i+=23){const v=new THREE.Vector3().fromBufferAttribute(pos,i);mesh.applyBoneTransform(i,v);const gap=v.distanceTo(kp.ballPosition)-P.BALL.R;if(gap<minShirtGap){minShirtGap=gap;minShirtTag=name+' @ '+t.toFixed(3)+' vertex '+i+' joint '+keeper.skeleton.bones[mesh.geometry.attributes.skinIndex.getX(i)].name;}}
+   }
+   catchChecks++;
+  }
+  const rotations=Object.fromEntries(Object.entries(keeper.joints).filter(([n])=>/^(upper|fore|thigh|shin)\./.test(n)).map(([n,b])=>[n,b.quaternion.clone()]));
+  if(previousKeeper)for(const [n,q] of Object.entries(rotations)){const angle=q.angleTo(previousKeeper[n]);if(angle>largest){largest=angle;worst=n+' @ '+t.toFixed(3)+'s (end '+end.t.toFixed(2)+')';const a=new THREE.Vector3(0,1,0).applyQuaternion(previousKeeper[n]),b=new THREE.Vector3(0,1,0).applyQuaternion(q);axisInfo=JSON.stringify({axisAngle:a.angleTo(b),from:a.applyQuaternion(previousChest.clone().invert()).toArray(),to:b.applyQuaternion(keeper.torso.quaternion.clone().invert()).toArray()});}}
+  previousKeeper=rotations;previousChest=keeper.torso.quaternion.clone();
+  if(t>end.t || kp.recoveryPhase){
+   for(const mesh of keeper.meshes.slice(0,4)){const pos=mesh.geometry.attributes.position,index=mesh.geometry.index.array;
+   for(let j=0;j<index.length;j+=93){const i=index[j],v=new THREE.Vector3().fromBufferAttribute(pos,i);mesh.applyBoneTransform(i,v);if(v.y<minFreeSkin){minFreeSkin=v.y;minSkinTag=name+' @ '+t.toFixed(3)+'s, vertex '+i+' joint '+keeper.skeleton.bones[mesh.geometry.attributes.skinIndex.getX(i)].name;}}}
+  }
+  if(kp.recoveryPhase){
+   const mesh=keeper.meshes[4],pos=mesh.geometry.attributes.position;
+   for(let i=0;i<pos.count;i+=13){const v=new THREE.Vector3().fromBufferAttribute(pos,i);mesh.applyBoneTransform(i,v);minSupportGlove=Math.min(minSupportGlove,v.y);}
+  }
+  checked++;
+ }
+ maxKeeperStep=Math.max(maxKeeperStep,largest);
+ if(JSON.stringify(shot)!==frozen)throw new Error('Animation mutated '+name);
+ if(JSON.stringify(catchFor(shot))!==frozenCatch)throw new Error('Animation mutated catch metadata in '+name);
+ if(JSON.stringify(motionFor(shot))!==frozenMotion)throw new Error('Animation mutated recovery metadata in '+name);
+ console.info('Sequence '+name+' checked; max keeper joint step '+largest.toFixed(3)+' '+worst+' '+axisInfo);
+}
+// The hands return to the guard with the body, even while recorded physics
+// frames continue holding the old dive reach. Contact frames remain exact.
+for(const [name,{shot}] of Object.entries(scenarios)){
+ const end=shot.frames.at(-1);
+ for(const recovery of motionFor(shot).recoveries){
+  const t=Math.max(recovery.uprightT+.2,recovery.t+.35);
+  if(motionFor(shot).falls.some(f=>t>=f.t&&t<f.until))continue;
+  if(t>=Math.min(end.t,recovery.until) || catchFor(shot)&&t>=catchFor(shot).t)continue;
+  const f=sampleFrame(shot,t),ball=new THREE.Vector3().fromArray(f.b);
+  if(Math.abs(ball.z-f.k.pos.z)<2.2)continue;
+  const p=keeperPose({k:f.k,t,clock:1,ball,plan:shot.plan,motionState:motionFor(shot),endT:end.t,endK:end.k});
+  if(Math.max(p.hands.l.y,p.hands.r.y)>p.pelvis.y+.15*keeper.S || p.hands.l.distanceTo(p.hands.r)>.90*keeper.S)throw new Error('Dive arms remained raised after recovery in '+name);
+  if(Math.abs(p.twist||0)>.01 || p.chestUp.angleTo(p.up)>.25)throw new Error('Dive twist remained after recovery in '+name);
+  checked++;
+ }
+ // A landing stays low rather than rotating straight upright. It passes
+ // through the roll and hand-supported get-up before its final standing pose.
+ for(const fall of motionFor(shot).falls){
+  for(const [age,phase] of [[.30,'side'],[.60,'roll'],[1.2,'getup'],[3.1,'stand'],[4,'ready']]){
+   if(fall.t+age>=fall.until-.55)continue;
+   const t=fall.t+age,f=sampleFrame(shot,t),ball=new THREE.Vector3().fromArray(f.b);
+   const p=keeperPose({k:f.k,t,clock:1,ball,plan:shot.plan,motionState:motionFor(shot),endT:end.t,endK:end.k,outcome:'held'});
+   if(p.recoveryPhase!==phase)throw new Error('Skipped recovery phase '+phase+' in '+name);
+   if(age<.7 && (p.pelvis.y>.36*keeper.S || p.up.y>.4))throw new Error('Recovery stood upright before bracing in '+name);
+   if(age===1.2 && Math.min(p.hands.l.y,p.hands.r.y)>.22*keeper.S)throw new Error('Get-up had no support hand in '+name);
+   if(age===4 && (p.up.y<.99||p.pelvis.y<.9*keeper.S))throw new Error('Recovery did not finish standing in '+name);
+   checked++;
+  }
+ }
+ // A fast recovery must show a low hand brace and a bent-legged plant,
+ // followed by a stationary drive toe while the ankle rolls into push-off.
+ const poseAt=t=>{
+  const f=sampleFrame(shot,t),ball=new THREE.Vector3().fromArray(f.b);
+  return keeperPose({k:f.k,t,clock:t+1,ball,plan:shot.plan,motionState:motionFor(shot),catchState:catchFor(shot),endT:end.t,endK:end.k});
+ };
+ for(const scramble of motionFor(shot).scrambles){
+  const sameSide=Math.sign(scramble.k.lean.s)===Math.sign(scramble.nextK.act.vx);
+  const settleT=scramble.t+Math.min(.12,(scramble.loadT-scramble.t)*(sameSide?.60:.45)),braceEnd=settleT+.022;
+  const brace=poseAt(settleT+.011),load=poseAt(scramble.loadT-1e-6);
+  if(brace.pelvis.y>.45*keeper.S || Math.min(brace.hands.l.y,brace.hands.r.y)>.05*keeper.S || brace.up.y>.8)throw new Error('Second dive skipped low hand brace in '+name);
+  if(load.pelvis.y>.7*keeper.S || load.up.y<.5)throw new Error('Second dive skipped crouched foot plant in '+name);
+  let driveToe=null;
+  for(const u of [.1,.35,.65,.9]){
+   const p=poseAt(scramble.loadT+(scramble.pushUntil-scramble.loadT)*u),key=scramble.pushKey;
+   const toe=p.feet[key].clone().addScaledVector(p.footUp[key],-.093*keeper.S).addScaledVector(p.toe[key],.16*keeper.S);
+   if(driveToe && toe.distanceTo(driveToe)>1e-6)throw new Error('Second dive drive toe skated in '+name);
+   driveToe=toe;checked++;
+  }
+  for(const time of [scramble.t,settleT,braceEnd,scramble.loadT,scramble.launchT,scramble.endT]){
+   const a=poseAt(time-1e-6),b=poseAt(time+1e-6);
+   if(a.pelvis.distanceTo(b.pelvis)>.001 || a.up.angleTo(b.up)>.001)throw new Error('Second dive body jumped at phase boundary in '+name);
+   for(const key of ['l','r'])if(a.hands[key].distanceTo(b.hands[key])>.001 || a.feet[key].distanceTo(b.feet[key])>.001)throw new Error('Second dive limb jumped at phase boundary '+time+' '+key+' in '+name);
+   keeper.setPose(a);checkRig(keeper,time);const rotations=Object.fromEntries(Object.entries(keeper.joints).map(([n,b])=>[n,b.quaternion.clone()]));
+   keeper.setPose(b);checkRig(keeper,time);
+   for(const [n,q] of Object.entries(rotations))if(q.angleTo(keeper.joints[n].quaternion)>.01)throw new Error('Second dive joint snapped at phase boundary '+time+' '+n+' in '+name+': '+q.angleTo(keeper.joints[n].quaternion));
+   checked++;
+  }
+ }
+ for(const time of motionFor(shot).contacts){
+  const t=time-.001;if(t<0 || catchFor(shot)&&t>=catchFor(shot).t)continue;
+  const f=sampleFrame(shot,t),ball=new THREE.Vector3().fromArray(f.b);
+  const p=keeperPose({k:f.k,t,clock:1,ball,plan:shot.plan,motionState:motionFor(shot),catchState:catchFor(shot),endT:end.t,endK:end.k});
+  const caps=P.keeperCapsules(f.k);
+  for(const [key,part] of [['l','right glove'],['r','left glove']]){
+   const a=caps.find(c=>c.name===part).a;
+   if(p.hands[key].distanceTo(new THREE.Vector3(a.x,a.y,a.z))>1e-8)throw new Error('Contact reach drifted in '+name);
+  }
+  checked++;
+ }
+}
+// Possession begins at the engine's catch event, with no displayed ball jump.
+// A parry stays on recorded playback until a later catch actually happens.
+if(catchFor(scenarios.parry.shot)!==null)throw new Error('Parry incorrectly became a hold');
+for(const [name,{shot}] of Object.entries(scenarios)){
+ const catchState=catchFor(shot);if(!catchState)continue;
+ for(const t of [catchState.t-1e-5,catchState.t]){
+  const f=sampleFrame(shot,t),end=shot.frames.at(-1),ball=new THREE.Vector3().fromArray(f.b);
+  const pose=keeperPose({k:f.k,t,clock:1,ball,plan:shot.plan,catchState,motionState:motionFor(shot),outcome:shot.result.outcome,endT:end.t,endK:end.k});
+  if(t<catchState.t && pose.ballPosition)throw new Error('Held ball moved before catch in '+name);
+  if(t===catchState.t && pose.ballPosition.distanceTo(ball)>1e-8)throw new Error('Ball jumped on catch in '+name);
+  checked++;
+ }
+}
+// Recoil starts after impact, never predicts a failed stop, and is cleared
+// around every subsequent contact. It cannot turn a parry into possession.
+let impactChecks=0;
+for(const [name,{shot}] of Object.entries(scenarios)){
+ const motion=motionFor(shot),end=shot.frames.at(-1),caught=catchFor(shot);
+ const poseAt=(t,respond=true)=>{
+  const f=sampleFrame(shot,t);
+  return keeperPose({k:f.k,t,clock:1,ball:new THREE.Vector3().fromArray(f.b),plan:shot.plan,
+   motionState:respond?motion:{...motion,impacts:[]},catchState:caught,endT:end.t,endK:end.k});
+ };
+ for(const impact of motion.impacts){
+  for(const t of [impact.t-1e-5,impact.t]){
+   const a=poseAt(t),b=poseAt(t,false);
+   if(a.contactResponse||a.pelvis.distanceTo(b.pelvis)>1e-9)throw new Error('Recoil anticipated impact in '+name);
+   for(const key of ['l','r'])if(a.hands[key].distanceTo(b.hands[key])>1e-9||a.feet[key].distanceTo(b.feet[key])>1e-9)throw new Error('Recoil moved a contact target in '+name);
+   checked++;
+  }
+  for(const age of [.07,.10,.13]){
+   const t=impact.t+age;if(caught&&t>=caught.t)continue;
+   const p=poseAt(t),base=poseAt(t,false);
+   if(p.ballPosition)throw new Error('Parry acquired a held ball in '+name);
+   if(p.contactResponse?.t!==impact.t||p.contactResponse.weight<.2)continue;
+   if(p.contactResponse.gaveWay!==impact.gaveWay)throw new Error('Recoil ignored gaveWay in '+name);
+   const key=impact.part.startsWith('right')?'l':'r';
+   if(impact.gaveWay&&['arm','glove'].includes(impact.kind)&&p.hands[key].clone().sub(base.hands[key]).dot(new THREE.Vector3().fromArray(impact.incoming))<.015*keeper.S)throw new Error('Giving limb did not recoil with incoming shot in '+name);
+   if(impact.kind==='leg'&&impact.gaveWay&&impact.phase==='air'&&p.feet[key].distanceTo(base.feet[key])<.01*keeper.S)throw new Error('Airborne giving leg did not recoil in '+name);
+   impactChecks++;checked++;
+  }
+ }
+}
+if(impactChecks<6)throw new Error('Not enough impact reactions checked');
+for(const [name,{shot}] of Object.entries(scenarios)){
+ const state=catchFor(shot);if(!state)continue;
+ const end=shot.frames.at(-1),poseAt=age=>{const t=state.t+age,f=sampleFrame(shot,t);return keeperPose({k:f.k,t,clock:1,ball:new THREE.Vector3().fromArray(f.b),plan:shot.plan,motionState:motionFor(shot),catchState:state,endT:end.t,endK:end.k});};
+ if(state.method==='onehand'){
+  const p=poseAt(.08),other=state.lead==='l'?'r':'l';
+  if(p.ballGrip.weight[state.lead]<.8||p.ballGrip.weight[other]>.01)throw new Error('One-hand catch did not receive before gathering in '+name);
+  checked++;
+ }
+ if(state.method==='twohand'){
+  const p=poseAt(.15);if(Object.values(p.ballGrip.weight).some(w=>w<.99))throw new Error('Two-hand catch received asymmetrically in '+name);checked++;
+ }
+ if(state.method==='feet'){
+  for(const age of [.10,.25,.39])if(poseAt(age).ballPosition.distanceTo(state.worldBall)>1e-8)throw new Error('Foot gather lifted before hands arrived in '+name);
+  if(poseAt(.3).pelvis.y>.65*keeper.S||poseAt(.85).ballPosition.y<state.worldBall.y+.15)throw new Error('Foot gather skipped crouch and lift in '+name);
+  checked+=4;
+ }
+}
+if(minGloveGap<-.0005)throw new Error('Held glove mesh entered ball: '+minGloveGap);
+if(minSole<.0009)throw new Error('Boot sole crossed the turf: '+minSole);
+if(minFreeSkin<-.005)throw new Error('Recovery mesh crossed the turf: '+minFreeSkin+' '+minSkinTag);
+if(minSupportGlove<-.005)throw new Error('Supporting glove crossed turf: '+minSupportGlove);
+if(maxJointStep>.7)throw new Error('Kick joint flipped between samples: '+maxJointStep);
+if(maxKeeperStep>.9)throw new Error('Keeper joint flipped between samples: '+maxKeeperStep);
+// Seeking backward or revisiting a frame must produce the same skin matrices,
+// even after a different pose and with a different wall clock.
+for(const [name,{shot,outcome}] of Object.entries(scenarios))for(const t of [.3,shot.frames.at(-1).t+1.4,
+ ...motionFor(shot).impacts.flatMap(c=>[c.t-.001,c.t+.07,c.t+.15]),
+ ...(catchFor(shot)?[catchFor(shot).t+.08,catchFor(shot).t+.3,catchFor(shot).t+.7]:[]),
+ ...motionFor(shot).scrambles.flatMap(s=>[s.t+.08,s.loadT,s.launchT+.08,s.endT-1e-5,s.endT+1e-5])]){
+ const f=sampleFrame(shot,t),end=shot.frames.at(-1),ball=new THREE.Vector3().fromArray(f.b);
+ const context={k:f.k,t,clock:1,ball,plan:shot.plan,catchState:catchFor(shot),motionState:motionFor(shot),outcome:outcome||shot.result.outcome,endT:end.t,endK:end.k,launch:shot.launch,decidedAt:shot.result.decidedAt};
+ for(const [rig,animate] of [[keeper,keeperPose],[taker,takerPose]]){
+  const pose=animate(context);rig.setPose(pose);checkRig(rig,t);const expected=Array.from(rig.skeleton.boneMatrices);
+  const held=JSON.stringify([pose.ballPosition,pose.ballRotation,pose.ballRotationWeight,pose.ballGrip]);
+  rig.setPose(animate({...context,t:end.t+4,clock:999}));
+  const repeated=animate({...context,clock:999});rig.setPose(repeated);checkRig(rig,t);
+  if(JSON.stringify([repeated.ballPosition,repeated.ballRotation,repeated.ballRotationWeight,repeated.ballGrip])!==held)throw new Error('Held ball depends on playback history in '+name);
+  if(!rig.skeleton.boneMatrices.every((v,i)=>v===expected[i]))throw new Error('Animation depends on playback history in '+name);
+ }
+ checked++;
+}
+console.info(JSON.stringify({checked,maxStretch,minSole,keeperStretch,moodStretch,maxJointStep,maxKeeperStep,minFreeSkin,minSkinTag,contactError,stretchTag,catchChecks,maxPalmError,minFingerGap,minGloveGap,minGloveTag,minShirtGap,minShirtTag,minSupportGlove}));
+if(JSON.stringify(sim)!==original)throw new Error('Animation changed the simulation data');
+function sampleFrame(shot,t){
+ const frames=shot.frames;if(t<=0)return frames[0];if(t>=frames.at(-1).t)return frames.at(-1);
+ const dt=P.SIM.DT*P.SIM.RECORD_EVERY,i=Math.min(frames.length-2,Math.floor(t/dt)),a=frames[i],b=frames[i+1],u=(t-a.t)/(b.t-a.t);
+ const vector=(x,y)=>new THREE.Vector3(x.x,x.y,x.z).lerp(new THREE.Vector3(y.x,y.y,y.z),u).normalize();
+ const lean=new THREE.Vector2(a.k.lean.s,a.k.lean.c).lerp(new THREE.Vector2(b.k.lean.s,b.k.lean.c),u).normalize();
+ const arm=(side)=>{const v=vector(a.k.arms[side],b.k.arms[side]);return{x:v.x,y:v.y,z:v.z}};
+ return{t,b:a.b.map((v,j)=>v+(b.b[j]-v)*u),q:new THREE.Quaternion().fromArray(a.q).slerp(new THREE.Quaternion().fromArray(b.q),u).toArray(),inGoal:a.inGoal,
+  k:{pos:{x:a.k.pos.x+(b.k.pos.x-a.k.pos.x)*u,y:a.k.pos.y+(b.k.pos.y-a.k.pos.y)*u,z:a.k.pos.z+(b.k.pos.z-a.k.pos.z)*u},lean:{s:lean.x,c:lean.y},arms:{l:arm('l'),r:arm('r')},
+   plant:a.k.plant&&b.k.plant&&a.k.plant.side===b.k.plant.side?a.k.plant:null,act:b.k.act&&b.k.act.t0<=t?b.k.act:a.k.act}};
+}
+let view='game',energy=0,playing=false,playCursor=-.85;
+const range=document.querySelector('#time'),play=document.querySelector('#play');
+play.onclick=()=>{playing=!playing;if(playing){playCursor=-.85;range.value=playCursor;}play.textContent=playing?'Pause':'Play';};
+range.oninput=()=>{playing=false;play.textContent='Play';};
+document.querySelector('#sequence').onchange=e=>{selected=e.target.value;sim=scenarios[selected].shot;range.max=sim.frames.at(-1).t+6;range.value=-.85;playCursor=-.85;playing=false;play.textContent='Play';};
+range.max=sim.frames.at(-1).t+6;
+for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>view=b.dataset.view;
+document.querySelector('#cheer').onclick=()=>energy=1-energy;
+const poses={game:[.3,1.95,5.6,0,1.05,P.GOAL.Z],stadium:[-18,12,18,0,8,P.GOAL.Z-7],side:[8,1.6,-1,0,1,-2]};
+let last=performance.now();
+function tick(now){
+ const dt=Math.min(.05,(now-last)/1000);last=now;
+ if(playing){playCursor+=dt*Number(document.querySelector('#speed').value);range.value=playCursor;if(playCursor>=Number(range.max)){playing=false;play.textContent='Play';}}
+ const t=playing?playCursor:Number(range.value),f=sampleFrame(sim,Math.max(0,t)),end=sim.frames.at(-1),outcome=scenarios[selected].outcome||sim.result.outcome;
+ world.ball.position.fromArray(f.b);world.ball.quaternion.fromArray(f.q);
+ const earlier=sampleFrame(sim,Math.max(0,t-.03)),kvx=t>.03?(f.k.pos.x-earlier.k.pos.x)/.03:0;
+ const keeperBody=keeperPose({k:f.k,t,clock:t+1,ball:world.ball.position,kvx,plan:sim.plan,catchState:catchFor(sim),motionState:motionFor(sim),outcome,endT:end.t,endK:end.k});
+ keeper.setPose(keeperBody);
+ if(keeperBody.ballPosition){world.ball.position.copy(keeperBody.ballPosition);world.ball.quaternion.slerp(keeperBody.ballRotation,keeperBody.ballRotationWeight);}
+ taker.setPose(takerPose({t,clock:t+1,launch:sim.launch,ball:world.ball.position,outcome:t>=sim.result.decidedAt?outcome:null,decidedAt:sim.result.decidedAt}));
+ world.update(dt,energy);world.updateNet(world.ball.position,f.inGoal);
+ if(view==='catchdetail'){
+  const p=world.ball.position;camera.position.set(p.x-.35,p.y+.13,p.z+.65);camera.lookAt(p.x,p.y,p.z);
+ }else if(view==='hand'){
+  const p=taker.joints['hand.L'].position;camera.position.set(p.x-.27,p.y+.1,p.z+.45);camera.lookAt(p.x,p.y+.025,p.z);
+ }else if(view==='face'||view==='keeperface'){
+  const rig=view==='face'?taker:keeper,p=rig.head.position,sign=view==='face'?-1:1;camera.position.set(p.x-.4,p.y+.06,p.z+sign*.95);camera.lookAt(p.x,p.y+.01,p.z);
+ }else if(view==='taker'||view==='keeper'){
+  const rig=view==='taker'?taker:keeper,p=rig.pelvis.position;
+  camera.position.set(p.x-2.5,view==='taker'?1.35:1.2,p.z+(view==='taker'?2.7:3.4));camera.lookAt(p.x,Math.max(.55,p.y),p.z);
+ }else{const c=poses[view];camera.position.set(...c.slice(0,3));camera.lookAt(...c.slice(3));}
+ renderer.render(scene,camera);
+ const touch=sim.result.contacts?.filter(c=>c.t<=t).at(-1);
+ const response=touch?` · ${touch.kind} ${touch.decision}${touch.gaveWay?' · gave way':''}${touch.decision==='catch'?' · '+touch.how:''}`:'';
+ document.querySelector('#info').textContent=`${t.toFixed(2)}s${response} · ${checked} poses checked · sole ${minSole.toFixed(3)}m · ${Math.round(1/dt)} fps`;
+ requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script></html>

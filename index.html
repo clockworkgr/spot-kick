@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spot Kick</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="src/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="hud">
+    <header id="topbar">
+      <div class="brand">SPOT<span>KICK</span></div>
+      <div id="scoreboard">
+        <div id="round-label" class="set-label">Shootout <b>1</b> · Round <b>1</b></div>
+        <div class="sides">
+          <div class="side"><span class="who">You</span><div class="dots" id="dots-player"></div><b id="score-player">0</b></div>
+          <div class="side"><span class="who">CPU</span><div class="dots" id="dots-cpu"></div><b id="score-cpu">0</b></div>
+        </div>
+        <div id="turn" class="player">You shoot</div>
+      </div>
+      <div id="match" hidden>
+        <span id="match-title"></span>
+        <button id="to-lobby" title="Back to the lobby (Esc)">Lobby <kbd>Esc</kbd></button>
+      </div>
+      <div id="toggles">
+        <button data-toggle="hitboxes" title="Show the exact collision shapes (H)">Hitboxes <kbd>H</kbd></button>
+        <button data-toggle="preview" title="Practice aid: draws the predicted flight into an empty goal (P)">Path preview <kbd>P</kbd></button>
+      </div>
+    </header>
+
+    <div id="commit" class="pill">
+      <span class="dot"></span>
+      Keeper's plan and your mishit are sealed · <code>--------</code>
+    </div>
+
+    <div id="dock">
+      <div id="shoot-cards" class="cards">
+        <section class="card picker-card">
+          <h3>Contact point <small>· zoomed</small></h3>
+          <canvas id="picker" width="150" height="150"></canvas>
+          <div id="contact-readout" class="readout"></div>
+        </section>
+        <section class="card power-card">
+          <h3>Strike</h3>
+          <div class="power">
+            <div id="power-fill"></div>
+            <div class="power-ticks"></div>
+          </div>
+          <div id="power-value" class="readout"><b>0%</b> power</div>
+          <ul class="help">
+            <li><b>Move mouse</b> / <kbd>←↑↓→</kbd> to aim the swing</li>
+            <li><b>Click ball</b> or <kbd>W A S D</kbd> to set contact</li>
+            <li><b>Hold</b> <kbd>Space</kbd> or mouse, <b>release</b> to shoot</li>
+            <li>Harder strikes mishit more</li>
+          </ul>
+        </section>
+      </div>
+      <section id="keeper-card" class="card keeper-card" hidden>
+        <h3>Your keeper <small>· the kick is already sealed</small></h3>
+        <div class="seg">
+          <button data-mode="guess" class="on">Pick a spot <kbd>1</kbd></button>
+          <button data-mode="read">Wait &amp; read <kbd>2</kbd></button>
+        </div>
+        <label class="slider">
+          <span>Reaction</span>
+          <input id="reaction" type="range" min="20" max="120" step="1" value="60" />
+          <b id="reaction-value">60 ms</b>
+        </label>
+        <div id="keep-readout" class="readout"></div>
+        <ul class="help">
+          <li><b>Move mouse</b> over the goal, <b>click</b> to pin the spot to cover (<kbd>L</kbd> unpins)</li>
+          <li><kbd>←↑↓→</kbd> nudge the spot · <kbd>Q</kbd> <kbd>E</kbd> reaction</li>
+          <li>The ghost shows the dive as planned; going earlier misjudges it more</li>
+        </ul>
+        <button id="ready" class="primary">Ready — take the kick <kbd>Space</kbd></button>
+      </section>
+    </div>
+
+    <div id="banner"><div class="title"></div><div class="detail"></div></div>
+
+    <aside id="report" hidden>
+      <div class="report-head">
+        <div id="report-title"></div>
+        <div id="report-detail"></div>
+      </div>
+      <div id="report-body"></div>
+      <div class="report-actions">
+        <button data-replay="goal">Replay · behind goal <kbd>R</kbd></button>
+        <button data-replay="side">Replay · side, slow</button>
+        <button data-replay="follow">Replay · ball cam</button>
+        <button id="next" class="primary">Next shot <kbd>Enter</kbd></button>
+      </div>
+    </aside>
+  </div>
+
+  <section id="lobby" hidden>
+    <header class="lobby-top">
+      <div class="brand">SPOT<span>KICK</span></div>
+      <div id="net-pill" class="net"><span class="dot"></span><span id="net-name">Connecting…</span> · block <b id="net-height">–</b></div>
+      <button id="net-settings" class="icon" title="Network settings">⚙</button>
+      <button id="wallet-btn" class="wallet primary">Connect wallet</button>
+    </header>
+    <div class="lobby-body">
+      <div class="hero">
+        <h1>Beat the chain.<br /><span>Take the pot.</span></h1>
+        <p>Pay a game's entry fee, then shoot five and keep five against the chain. Win the shootout and the whole pot is yours; lose and your fee stays in it for the next challenger.</p>
+        <p class="fine">Every kick is settled in the block it lands in: the chain's move and the mishit come from SHA-256 of the block time, and the realm runs the same physics engine as this page, bit for bit, so the 3-D replay is exactly what the chain decided. Running the physics on chain is heavy: each kick's fee covers a 0.7B gas limit (0.7 GNOT at gnodev prices) plus ~0.3 GNOT of storage.</p>
+        <div class="hero-actions">
+          <button id="create-btn" class="primary">Create a game</button>
+          <button id="practice-btn">Practice offline</button>
+        </div>
+        <div id="resume"></div>
+      </div>
+      <div class="games-panel">
+        <nav class="tabs">
+          <button data-tab="open" class="on">Open</button>
+          <button data-tab="playing">In play</button>
+          <button data-tab="closed">Finished</button>
+          <button data-tab="mine">Mine</button>
+        </nav>
+        <div id="games"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+
+  <dialog id="create-dialog">
+    <form id="create-form" method="dialog">
+      <h2>Create a game</h2>
+      <p class="muted">You seed the pot. Challengers pay the entry fee into it; the first to beat the chain takes it all. You can cancel for a refund until someone plays.</p>
+      <div class="grid3">
+        <label>Pot<input name="pot" type="number" min="1" step="0.1" value="10" /><small>GNOT, at least 1</small></label>
+        <label>Entry fee<input name="fee" type="number" min="0.1" step="0.1" value="1" /><small>GNOT, at least 0.1</small></label>
+        <label>Timeout<input name="timeout" type="number" min="30" max="200000" step="1" value="1000" /><small>idle blocks before anyone may end a shootout</small></label>
+      </div>
+      <details>
+        <summary>Constants <small>(the 3-D replay always uses the defaults)</small></summary>
+        <div id="cfg-fields" class="grid3"></div>
+      </details>
+      <p class="err"></p>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancel</button>
+        <button type="submit" class="primary">Create and send pot</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <form id="settings-form" method="dialog">
+      <h2>Network</h2>
+      <label>Name<input name="name" /></label>
+      <label>RPC<input name="rpc" placeholder="http://127.0.0.1:26657" /></label>
+      <label>Chain id<input name="chainId" placeholder="dev" /></label>
+      <label>Realm<input name="realm" placeholder="gno.land/r/clockwork/shots" /></label>
+      <label>gnoweb<input name="web" placeholder="http://127.0.0.1:8888" /></label>
+      <p class="muted">Also settable with URL parameters <code>?rpc=…&amp;chainId=…&amp;realm=…&amp;web=…</code>.</p>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancel</button>
+        <button type="submit" class="primary">Save and reload</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="game-dialog">
+    <div class="body"></div>
+    <div class="dialog-actions"><button type="button" data-close>Close</button></div>
+  </dialog>
+
+  <script type="module" src="src/main.js?v=16"></script>
+</body>
+</html>

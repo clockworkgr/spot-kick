@@ -1,0 +1,5 @@
+.DS_Store
+node_modules/
+# Development screenshots and recordings
+artifacts/
+__pycache__/
