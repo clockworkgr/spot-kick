@@ -3,3 +3,4 @@ node_modules/
 # Development screenshots and recordings
 artifacts/
 __pycache__/
+tools/bin/

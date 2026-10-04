@@ -11,14 +11,25 @@ decided **before** you choose: its move is sealed (hashed) and revealed after.
 The page opens on a **lobby** for the Spot Kick realm (`../gno-shots-realm`); **Practice offline**
 (or `?practice`) is the self-contained game described below.
 
+It is published at <https://clockworkgr.github.io/spot-kick/> (GitHub Pages, straight from
+`main`) and plays the realm deployed on the Onyx testnet (`onyx-1`) at
+`gno.land/r/g1lnkytfqcjwllws63gvf0mv9yt04aswy4y9amhm/shots`; test GNOT come from the
+[faucet](https://faucet.gno.land). To develop against a local chain:
+
 ```
 tools/devchain.sh g1youradenaaddress    # gnodev + the realm, impl/v1 accepted, your address funded
-python3 -m http.server 8000             # then open http://localhost:8000
+python3 -m http.server 8000             # then open http://localhost:8000/?rpc=http://127.0.0.1:26657&chainId=dev&realm=gno.land/r/clockwork/shots&web=http://127.0.0.1:8888&name=Local%20gnodev
 ```
 
+`tools/deploy.sh <gnokey-key>` deploys the packages and realm to a public network (Onyx by
+default) under that key's address namespace, with that address as the realm's Admin, and
+accepts impl/v1. Named namespaces such as `clockwork` cannot be registered on Onyx yet, so
+the script rewrites `gno.land/{p,r}/clockwork` on the way. Its gnokey must match the
+network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag).
+
 - **Wallet:** [Adena](https://adena.app). Connecting adds and switches to the configured network
-  (default: local gnodev at `http://127.0.0.1:26657`, chain id `dev`). Change it with ⚙ or with
-  `?rpc=…&chainId=…&realm=…&web=…`.
+  (default: Onyx, `https://rpc.onyx.testnets.gno.land`, chain id `onyx-1`). Change it with ⚙ or
+  with `?rpc=…&chainId=…&realm=…&web=…`.
 - **Lobby:** every game the realm holds, with tabs for open, in play, finished and yours. You can
   create a game (pot, entry fee, idle timeout, optional constants), play an open one (pays its fee),
   continue your shootout, top up a pot, cancel your unplayed game for a refund, resign, or end a
@@ -34,9 +45,9 @@ python3 -m http.server 8000             # then open http://localhost:8000
   bit-identical results, so the replay is exactly the chain's kick; the report shows the chain's
   verdict and confirms the replay matches it. Games with non-default constants are badged: the
   realm plays them with their constants, the replay with the defaults.
-- **Cost:** 40–110M gas for a typical kick on chain, ~0.5B at worst. The chain charges the
-  fee for the gas limit, so each kick pays for 0.7B (0.7 GNOT at gnodev's
-  1 ugnot per 1000 gas) plus ~0.3 GNOT of storage.
+- **Cost:** 30–70M gas for a typical kick on chain, ~0.36B at worst. The chain charges the
+  fee for the gas limit, so each kick pays for 0.7B (0.7 GNOT at 1 ugnot per 1000 gas, the
+  price on both gnodev and Onyx) plus ~0.3 GNOT of storage.
 - `src/chain.js` (RPC reads, Adena, transactions) and `src/lobby.js` (lobby UI) are the whole
   integration.
 

@@ -6,18 +6,21 @@
 // result), so every write then polls the node's /tx endpoint until the
 // transaction is in a block and returns the realm function's return value.
 
+// The public deployment (tools/deploy.sh). For a local gnodev
+// (tools/devchain.sh) use the lobby's network settings or the URL:
+// ?rpc=http://127.0.0.1:26657&chainId=dev&realm=gno.land/r/clockwork/shots&web=http://127.0.0.1:8888&name=Local%20gnodev
 const DEFAULTS = {
-  rpc: 'http://127.0.0.1:26657',
-  chainId: 'dev',
-  realm: 'gno.land/r/clockwork/shots',
-  name: 'Local gnodev',
-  web: 'http://127.0.0.1:8888', // gnoweb, for links to the realm's pages
+  rpc: 'https://rpc.onyx.testnets.gno.land',
+  chainId: 'onyx-1',
+  realm: 'gno.land/r/g1lnkytfqcjwllws63gvf0mv9yt04aswy4y9amhm/shots',
+  name: 'Gno.land Onyx testnet',
+  web: 'https://onyx.testnets.gno.land', // gnoweb, for links to the realm's pages
 };
 const STORE_KEY = 'spotkick.network';
 
 export const DENOM = 'ugnot';
 // Gas limits. A kick runs the whole physics engine on chain: typically
-// 40-110M gas, ~0.5B at worst (a ball scrambling near the keeper, out of
+// 30-70M gas, ~0.36B at worst (a ball scrambling near the keeper, out of
 // pouncing range, for most of the 2.5 s cap), so kicks ask for 0.7B. The
 // chain charges the limit times its gas price in full, used or not, so it is
 // not padded further.
