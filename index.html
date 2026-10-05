@@ -107,6 +107,11 @@
   </div>
 
   <section id="lobby" hidden>
+    <div id="lobby-loading" class="loading" role="status" aria-live="polite">
+      <div class="brand">SPOT<span>KICK</span></div>
+      <div class="loading-spinner"></div>
+      <p id="loading-text">Loading games…</p>
+    </div>
     <header class="lobby-top">
       <div class="brand">SPOT<span>KICK</span></div>
       <div id="net-pill" class="net"><span class="dot"></span><span id="net-name">Connecting…</span> · block <b id="net-height">–</b></div>
@@ -212,6 +217,6 @@
     <div class="dialog-actions"><button type="button" data-close>Close</button></div>
   </dialog>
 
-  <script type="module" src="src/main.js?v=27"></script>
+  <script type="module" src="src/main.js?v=28"></script>
 </body>
 </html>

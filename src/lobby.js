@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=27';
+import * as C from './chain.js?v=28';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -15,6 +15,7 @@ const view = {
   height: 0,
   online: false,
   busy: false,
+  loaded: false, // the first load is done (the loading screen is gone)
 };
 let hooks = { onPlay: () => {}, onPractice: () => {} };
 let refreshTimer = null;
@@ -98,6 +99,10 @@ async function refresh() {
     $('net-height').textContent = '–';
   }
   render();
+  if (!view.loaded) {
+    view.loaded = true;
+    $('lobby-loading').classList.add('done');
+  }
 }
 
 const mySession = (g) => {
@@ -155,7 +160,7 @@ function render() {
   }[view.tab];
   const list = view.games.filter(pick);
   let empty = '';
-  if (!view.online) empty = `Can't reach <code>${esc(C.net.rpc)}</code>. Start a local chain with <code>tools/devchain.sh</code> or change the network (⚙).`;
+  if (!view.online) empty = `Can't reach <code>${esc(C.net.rpc)}</code>. Check your connection, or change the network (⚙).`;
   else if (!list.length) {
     empty = view.tab === 'open' ? 'No open games. Create one and seed its pot.'
       : view.tab === 'mine' ? (wallet.address ? 'Nothing of yours yet.' : 'Connect your wallet to see your games.')
@@ -398,6 +403,7 @@ export function initLobby(h) {
 
 export function showLobby() {
   $('lobby').hidden = false;
+  if (!view.loaded) $('loading-text').textContent = `Loading games from ${C.net.name}…`;
   document.body.classList.add('in-lobby');
   refresh();
   refreshBalance();
