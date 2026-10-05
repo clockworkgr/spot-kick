@@ -282,6 +282,11 @@ dialog input {
   padding: 8px 10px; font: 14px var(--mono);
 }
 dialog small { color: var(--muted); font-size: 11px; }
+dialog select {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--panel-line); border-radius: 8px; color: var(--text);
+  padding: 8px 10px; font: 14px var(--mono);
+}
+dialog label.winby { margin-bottom: 14px; }
 dialog a { color: var(--post); }
 dialog .muted, .muted { color: var(--muted); font-size: 13px; }
 dialog details { margin: 6px 0 10px; }

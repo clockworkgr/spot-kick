@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=20';
+import * as C from './chain.js?v=21';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -82,6 +82,8 @@ async function refresh() {
     $('net-name').textContent = view.online ? `${C.net.name} · ${st.chainId}` : `wrong chain: ${st.chainId}`;
     $('net-height').textContent = st.height.toLocaleString();
     view.games = await C.listGames('', 0, 100);
+    // Each game's margin (cached once read: it never changes).
+    await Promise.all(view.games.map(async (g) => (g.winBy = await C.winByOf(g.id))));
     // The live session of every game in play, and the latest of games you
     // created, to know whose turn it is and who may be forfeited.
     const want = view.games.filter((g) => g.sessions > 0 && (g.status === 'playing' || g.creator === wallet.address));
@@ -132,7 +134,7 @@ function card(g) {
     live = `<div class="live">Won by ${g.winner === wallet.address ? 'you' : C.short(g.winner)} at block ${g.closedHeight}</div>`;
   }
   return `<article class="game ${g.status}${you ? ' yours' : ''}">
-    <header><b>#${g.id}</b><span class="status ${g.status}">${g.status}</span>${custom ? '<span class="badge" title="Played with non-default constants; the 3-D replay uses the default ones">custom constants</span>' : ''}${mine ? '<span class="badge mine">yours</span>' : ''}</header>
+    <header><b>#${g.id}</b><span class="status ${g.status}">${g.status}</span>${custom ? '<span class="badge" title="Played with non-default constants; the 3-D replay uses the default ones">custom constants</span>' : ''}${mine ? '<span class="badge mine">yours</span>' : ''}<span class="badge" title="${esc(C.WIN_BY[g.winBy]?.rules || '')}">win by ${g.winBy}</span></header>
     <div class="pot"><small>${g.status === 'won' ? 'Prize' : 'Pot'}</small>${g.status === 'won' && !g.pot ? 'paid out' : C.gnot(g.pot)}</div>
     <div class="meta">Entry <b>${C.gnot(g.entryFee)}</b> · ${g.sessions} challenger${g.sessions === 1 ? '' : 's'} · timeout ${g.timeoutBlocks} blocks · by ${C.short(g.creator)}</div>
     ${live}
@@ -192,6 +194,7 @@ async function act(name, id) {
       const fresh = await C.getGame(g.id, at);
       const s = await C.getSession(g.id, fresh.sessions, at);
       await refreshBalance();
+      fresh.winBy = await C.winByOf(g.id);
       return hooks.onPlay(fresh, s);
     }
     if (name === 'topup') {
@@ -237,7 +240,7 @@ async function showDetails(g) {
     <p>${g.status === 'won' ? (g.pot ? `Prize <b>${C.gnot(g.pot)}</b>` : 'Prize paid out') : `Pot <b>${C.gnot(g.pot)}</b>`} · entry ${C.gnot(g.entryFee)} · timeout ${g.timeoutBlocks} blocks · created at block ${g.createdHeight} by <code>${g.creator}</code></p>
     <p><a href="${C.webLink(`game/${g.id}`)}" target="_blank" rel="noopener">Open on gnoweb ↗</a></p>
     <h3>Challengers</h3><div id="sessions-list">${g.sessions ? '<p class="muted">Loading…</p>' : '<p class="muted">Nobody has played yet.</p>'}</div>
-    <p class="muted">Win the shootout by two goals or more to take the pot: ${100 - C.CREATOR_PERCENT}% to the winner, ${C.CREATOR_PERCENT}% to the game's creator.</p>
+    <p class="muted">Win by ${g.winBy} (${esc(C.WIN_BY[g.winBy]?.rules || '')}) to take the pot: ${100 - C.CREATOR_PERCENT}% to the winner, ${C.CREATOR_PERCENT}% to the game's creator. Against the chain a skilled player wins about ${C.WIN_BY[g.winBy]?.skilled} of these shootouts.</p>
     <h3>Settings</h3><table class="cfg">${rows}</table>`;
   d.showModal();
   if (!g.sessions) return;
@@ -259,6 +262,18 @@ function openCreate() {
   if (!needWallet()) return;
   const d = $('create-dialog');
   const box = d.querySelector('#cfg-fields');
+  const form = d.querySelector('form');
+  if (!form.dataset.wired) {
+    form.dataset.wired = '1';
+    // Choosing a margin suggests its pot and fee.
+    form.winBy.addEventListener('change', () => {
+      const wb = C.WIN_BY[form.winBy.value];
+      form.pot.value = wb.seed;
+      form.fee.value = wb.fee;
+      d.querySelector('#winby-help').textContent = `${wb.rules}. A skilled challenger wins about ${wb.skilled} of these shootouts, a casual one about ${wb.casual}. Suggested: a ${wb.seed} GNOT pot and a ${wb.fee} GNOT entry fee.`;
+    });
+    form.winBy.dispatchEvent(new Event('change'));
+  }
   if (!box.childElementCount) {
     box.innerHTML = C.SETTINGS.map((s) =>
       `<label>${s.name}<input type="number" name="set-${s.key}" min="${s.min}" max="${s.max}" step="${s.unit === 'm' ? 'any' : s.step}" value="${s.standard}"><small>${s.min}–${s.max} ${s.unit}, ${s.help}</small></label>`).join('');
@@ -283,12 +298,16 @@ async function submitCreate(e) {
   if (!(pot >= 1e6)) return (err.textContent = 'The pot must be at least 1 GNOT.');
   if (!(fee >= 1e5)) return (err.textContent = 'The entry fee must be at least 0.1 GNOT.');
   if (!(timeout >= 30 && timeout <= 200000)) return (err.textContent = 'Timeout must be 30 … 200000 blocks.');
-  // A pot only grows if challengers pay in a fair share of it; below ~15% the
-  // creator usually loses the seed before the 20% comes back (see README).
-  if (fee < 0.15 * pot && !confirm(`An entry fee under 15% of the pot (here ${C.gnot(Math.ceil(0.15 * pot))}) usually costs the creator money: the pot is won before it has grown enough for the ${C.CREATOR_PERCENT}% share to pay back the seed. Create it anyway?`)) return;
+  // A pot pays its creator back only if it collects enough entry fees before
+  // it is won: past maxSeedRatio x the fee, the seed is usually lost when half
+  // the challengers are skilled (see the realm's README, Economics).
+  const winBy = Number(f.winBy.value);
+  const wb = C.WIN_BY[winBy];
+  if (pot > wb.maxSeedRatio * fee && !confirm(`For ${wb.name.toLowerCase()}, a pot over ${wb.maxSeedRatio}× the entry fee (here ${C.gnot(Math.floor(wb.maxSeedRatio * fee))}) usually costs the creator money: it is won before the ${C.CREATOR_PERCENT}% share pays back the seed. Suggested: ${wb.seed} GNOT pot, ${wb.fee} GNOT fee. Create it anyway?`)) return;
   $('create-dialog').close();
   try {
-    const r = await C.createGame(fee, timeout, C.configFromSettings(values), pot, txStatus('Creating the game'));
+    const config = [C.configFromSettings(values), winBy === 2 ? '' : `winBy=${winBy}`].filter(Boolean).join(',');
+    const r = await C.createGame(fee, timeout, config, pot, txStatus('Creating the game'));
     toast(`Game #${r.value} created with a ${C.gnot(pot)} pot.`, 'good');
     view.tab = 'open';
     await refreshBalance();

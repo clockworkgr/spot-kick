@@ -1,9 +1,11 @@
 # Spot Kick
 
 A 3-D penalty shootout against the computer. You take a kick, then go in goal
-for the computer's kick, round after round: five kicks each at most, no sudden
-death, and you win only by two goals or more; it ends as soon as that is
-certain either way (`src/shootout.js`, the same rules as the realm's impl/v3).
+for the computer's kick, round after round. A game's creator chooses the margin
+you must win by: 1 (a normal shootout, five kicks each then sudden death), or
+2 or 3 (five kicks each at most, no sudden death, won only by that many goals);
+it ends as soon as the result is certain (`src/shootout.js`, the same rules as
+the realm's impl/v3; practice plays win by 2, or `?winBy=1|3`).
 Whichever side is not yours is decided **before** you choose: its move is
 sealed (hashed) and revealed after. The computer plays the chain's
 equilibrium mixes (`src/chainplay.js`, see the realm's README, Economics).
@@ -33,8 +35,9 @@ network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag)
   (default: Onyx, `https://rpc.onyx.testnets.gno.land`, chain id `onyx-1`). Change it with ⚙ or
   with `?rpc=…&chainId=…&realm=…&web=…`.
 - **Lobby:** every game the realm holds, with tabs for open, in play, finished and yours. You can
-  create a game (pot, entry fee, idle timeout, and four small settings: goal width, keeper size,
-  keeper agility, shot speed), play an open one (pays its fee),
+  create a game (the margin to win by, pot, entry fee, idle timeout, and four small settings: goal
+  width, keeper size, keeper agility, shot speed; choosing a margin suggests its pot and fee), play an
+  open one (pays its fee),
   continue your shootout, top up a pot, cancel your unplayed game for a refund, resign, or end a
   challenger's shootout once they have been idle past the timeout. *Details* shows the settings and
   every challenger's kicks, with links to gnoweb.

@@ -7,15 +7,15 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as P from './physics.js?v=20';
+import * as P from './physics.js?v=21';
 import { buildWorld, addHitbox, hitboxes, capsuleGeometry, placeSegment } from './scene.js';
 import { Humanoid } from './rig.js?v=4';
-import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=20';
-import * as KP from './keeperplan.js?v=20';
-import * as SO from './shootout.js?v=20';
-import * as CP from './chainplay.js?v=20';
-import * as C from './chain.js?v=20';
-import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=20';
+import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=21';
+import * as KP from './keeperplan.js?v=21';
+import * as SO from './shootout.js?v=21';
+import * as CP from './chainplay.js?v=21';
+import * as C from './chain.js?v=21';
+import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=21';
 
 const { BALL, GOAL, NET, KICK, SIM } = P;
 
@@ -195,6 +195,8 @@ const params = new URLSearchParams(location.search);
 // ?seed=N makes every round's bytes reproducible; otherwise they come from
 // the browser's cryptographic random source.
 const fixedSeed = params.has('seed') ? parseInt(params.get('seed'), 10) >>> 0 : null;
+// Practice's margin (?winBy=1..3), as a game's creator would choose it.
+const practiceWinBy = [1, 2, 3].includes(Number(params.get('winBy'))) ? Number(params.get('winBy')) : SO.DEFAULT_WIN_BY;
 
 const POWER_SWEEP = 0.85; // seconds for the meter to go 0 -> 100%
 
@@ -207,7 +209,7 @@ const game = {
   chain: null,        // chain mode: { game, session, after } (after = session once the kick lands)
   kick: 0,            // live kicks so far this session (indexes ?seed= bytes)
   shootoutNo: 1,
-  shootout: SO.createShootout(),
+  shootout: SO.createShootout(practiceWinBy),
   outcomes: { player: [], cpu: [] }, // 'goal' | 'save' | 'miss' | 'post' per kick
   side: 'player',     // who kicks now: 'player' (you shoot) | 'cpu' (you keep)
   bytes: null, commit: '',
@@ -239,7 +241,7 @@ function startPractice() {
   hideLobby();
   game.mode = 'practice';
   game.chain = null;
-  game.shootout = SO.createShootout();
+  game.shootout = SO.createShootout(practiceWinBy);
   game.outcomes = { player: [], cpu: [] };
   $('match').hidden = false;
   $('match-title').innerHTML = 'Practice · <b>offline</b>';
@@ -256,7 +258,7 @@ function settledView(s, kicks) {
   return { ...s, kicks };
 }
 function syncFromSession(s) {
-  game.shootout = SO.createShootout();
+  game.shootout = SO.createShootout(game.chain?.winBy ?? 1);
   game.outcomes = { player: [], cpu: [] };
   for (const k of s.kicks) {
     const side = k.kicker === 'player' ? 'player' : 'cpu';
@@ -268,7 +270,7 @@ function syncFromSession(s) {
 function startChain(g, s) {
   hideLobby();
   game.mode = 'chain';
-  game.chain = { game: g, session: s, after: null };
+  game.chain = { game: g, session: s, after: null, winBy: g.winBy ?? 1 };
   syncFromSession(s);
   $('match').hidden = false;
   renderMatch();
@@ -296,7 +298,7 @@ function backToLobby() {
 function newRound() {
   if (game.mode === 'chain') return newChainRound();
   if (SO.winner(game.shootout)) {
-    game.shootout = SO.createShootout();
+    game.shootout = SO.createShootout(practiceWinBy);
     game.outcomes = { player: [], cpu: [] };
     game.shootoutNo++;
   }
@@ -381,7 +383,8 @@ function renderScore() {
   $('score-player').textContent = sc.player;
   $('score-cpu').textContent = sc.cpu;
   const label = game.mode === 'chain' ? `Game <b>#${game.chain.game.id}</b>` : `Shootout <b>${game.shootoutNo}</b>`;
-  const stage = SO.winner(so) ? 'Final' : `Round <b>${Math.min(SO.round(so), SO.REGULATION)}</b> · win by ${SO.WIN_MARGIN}`;
+  const stage = SO.winner(so) ? 'Final' : SO.suddenDeath(so) ? 'Sudden death'
+    : `Round <b>${Math.min(SO.round(so), SO.REGULATION)}</b>${so.winBy > 1 ? ` · win by ${so.winBy}` : ''}`;
   $('round-label').innerHTML = `${label} · ${stage}`;
   const w = SO.winner(so);
   $('turn').className = w ? `over ${w}` : game.side;
@@ -1138,7 +1141,8 @@ function fillReport() {
   const sc = SO.score(game.shootout);
   const onChain = game.mode === 'chain' && !!shot.chain;
   let status;
-  const twoNeeded = sc.player >= sc.cpu ? ` A win needs two goals' margin.` : '';
+  const margin = game.shootout.winBy;
+  const twoNeeded = margin > 1 && sc.player >= sc.cpu ? ` A win needs a ${margin}-goal margin.` : '';
   if (onChain && game.chain.session.status === 'won') {
     const pot = game.chain.game.pot;
     const cut = Math.floor((pot * C.CREATOR_PERCENT) / 100);

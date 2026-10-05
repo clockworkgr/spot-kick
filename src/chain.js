@@ -83,8 +83,8 @@ export function parseGnoValue(text) {
 // realm from before it. A node refuses a height it has not reached (and
 // otherwise answers from its latest state), so the read is retried until it
 // reaches one that has the block.
-export async function qeval(expr, { height } = {}) {
-  const params = { path: '"vm/qeval"', data: `0x${hexOf(`${net.realm}.${expr}`)}` };
+export async function qeval(expr, { height, pkg = net.realm } = {}) {
+  const params = { path: '"vm/qeval"', data: `0x${hexOf(`${pkg}.${expr}`)}` };
   if (height) params.height = String(height);
   for (let attempt = 0; ; attempt++) {
     try {
@@ -180,6 +180,32 @@ export const isDefaultConfig = (s) => s === DEFAULT_CONFIG;
 
 // impl/v3: the winner is paid the pot less the creator's share.
 export const CREATOR_PERCENT = 20;
+
+// The margins a creator may choose (impl/v3's winBy), with how often a
+// challenger wins against the chain and the suggested pot and fee: the seed
+// a little under the most that still pays the creator back when half the
+// challengers are skilled (maxSeedRatio x the fee). See the realm's README,
+// Economics.
+export const WIN_BY = {
+  1: { name: 'Win by 1', rules: 'a normal shootout, sudden death if level', skilled: '47%', casual: '9.5%', seed: 2, fee: 2, maxSeedRatio: 1.2 },
+  2: { name: 'Win by 2', rules: 'five kicks each, two goals clear, no sudden death', skilled: '11%', casual: '1.5%', seed: 10, fee: 2, maxSeedRatio: 5.5 },
+  3: { name: 'Win by 3', rules: 'five kicks each, three goals clear, no sudden death', skilled: '2.3%', casual: '0.2%', seed: 40, fee: 2, maxSeedRatio: 25 },
+};
+
+// A game's margin, from the live implementation (games made before impl/v3,
+// and implementations without WinBy, play normal shootouts: win by 1).
+let liveImpl = null;
+const winBys = new Map();
+export async function winByOf(id) {
+  if (winBys.has(id)) return winBys.get(id);
+  let m = 1;
+  try {
+    liveImpl ??= await qeval('LivePath()');
+    m = Number(await qeval(`WinBy(${id})`, { pkg: liveImpl })) || 1;
+  } catch {}
+  winBys.set(id, m);
+  return m;
+}
 
 // ------------------------------------------------------------------ wallet
 
