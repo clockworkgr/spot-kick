@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=21';
+import * as C from './chain.js?v=23';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -32,7 +32,7 @@ export function toast(msg, kind = 'info', ms = 5000) {
 
 // Progress of a transaction, for chain.call's onStatus.
 export const txStatus = (what) => (s) => {
-  if (s === 'sign') toast(`<span class="spin"></span>${what}: confirm in your wallet…`, 'info', 0);
+  if (s === 'sign') toast(`<span class="spin"></span>${what}: confirm in your wallet, with Adena's network fee multiplier set to <b>${C.FEE_MULTIPLIER}</b>…`, 'info', 0);
   else if (s === 'block') toast(`<span class="spin"></span>${what}: waiting for the block…`, 'info', 0);
 };
 
@@ -134,7 +134,7 @@ function card(g) {
     live = `<div class="live">Won by ${g.winner === wallet.address ? 'you' : C.short(g.winner)} at block ${g.closedHeight}</div>`;
   }
   return `<article class="game ${g.status}${you ? ' yours' : ''}">
-    <header><b>#${g.id}</b><span class="status ${g.status}">${g.status}</span>${custom ? '<span class="badge" title="Played with non-default constants; the 3-D replay uses the default ones">custom constants</span>' : ''}${mine ? '<span class="badge mine">yours</span>' : ''}<span class="badge" title="${esc(C.WIN_BY[g.winBy]?.rules || '')}">win by ${g.winBy}</span></header>
+    <header><b>#${g.id}</b><span class="status ${g.status}">${g.status}</span>${custom ? '<span class="badge" title="Played with changed settings; the 3-D replay uses the standard ones">custom settings</span>' : ''}${mine ? '<span class="badge mine">yours</span>' : ''}<span class="badge" title="${esc(C.WIN_BY[g.winBy]?.rules || '')}">win by ${g.winBy}</span></header>
     <div class="pot"><small>${g.status === 'won' ? 'Prize' : 'Pot'}</small>${g.status === 'won' && !g.pot ? 'paid out' : C.gnot(g.pot)}</div>
     <div class="meta">Entry <b>${C.gnot(g.entryFee)}</b> · ${g.sessions} challenger${g.sessions === 1 ? '' : 's'} · timeout ${g.timeoutBlocks} blocks · by ${C.short(g.creator)}</div>
     ${live}
@@ -335,6 +335,10 @@ export function initLobby(h) {
   });
   $('create-btn').addEventListener('click', openCreate);
   $('practice-btn').addEventListener('click', () => hooks.onPractice());
+  $('about-btn').addEventListener('click', () => {
+    $('about-realm').href = C.webLink();
+    $('about-dialog').showModal();
+  });
   $('net-settings').addEventListener('click', openSettings);
   $('create-form').addEventListener('submit', submitCreate);
   $('settings-form').addEventListener('submit', (e) => {

@@ -287,6 +287,15 @@ dialog select {
   padding: 8px 10px; font: 14px var(--mono);
 }
 dialog label.winby { margin-bottom: 14px; }
+.notice {
+  margin: 14px 0; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45;
+  background: rgba(255, 154, 61, 0.12); border: 1px solid rgba(255, 154, 61, 0.45); color: var(--text);
+}
+.notice b { color: var(--save); }
+dialog.about p { font-size: 14px; line-height: 1.55; margin: 0 0 10px; }
+dialog.about h3 { margin-top: 16px; }
+dialog.about .about-links { margin-top: 16px; color: var(--muted); }
+dialog.about a { color: var(--accent); }
 dialog a { color: var(--post); }
 dialog .muted, .muted { color: var(--muted); font-size: 13px; }
 dialog details { margin: 6px 0 10px; }

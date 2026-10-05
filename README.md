@@ -6,9 +6,10 @@ you must win by: 1 (a normal shootout, five kicks each then sudden death), or
 2 or 3 (five kicks each at most, no sudden death, won only by that many goals);
 it ends as soon as the result is certain (`src/shootout.js`, the same rules as
 the realm's impl/v3; practice plays win by 2, or `?winBy=1|3`).
-Whichever side is not yours is decided **before** you choose: its move is
-sealed (hashed) and revealed after. The computer plays the chain's
-equilibrium mixes (`src/chainplay.js`, see the realm's README, Economics).
+The computer plays the chain's equilibrium mixes (`src/chainplay.js`, see the
+realm's README, Economics). Offline, its move is decided **before** you choose:
+sealed (hashed) and revealed after. On chain it comes from the block your move
+lands in.
 
 ## Playing on gno.land
 
@@ -31,6 +32,12 @@ accepts the latest implementation (impl/v3). Named namespaces such as `clockwork
 the script rewrites `gno.land/{p,r}/clockwork` on the way. Its gnokey must match the
 network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag).
 
+- **Important: on every transaction, set Adena's network fee multiplier to 1.4** in its
+  confirmation window before approving. Adena ignores the gas limit the page asks for and sizes
+  it from a trial run in an earlier block, but a kick's gas depends on the block it lands in
+  (its seed decides the kick), so at the default multiplier kicks often run out of gas: the
+  transaction fails, nothing is played and its fee is spent. The lobby and every signing prompt
+  say so, and an out-of-gas failure explains it.
 - **Wallet:** [Adena](https://adena.app). Connecting adds and switches to the configured network
   (default: Onyx, `https://rpc.onyx.testnets.gno.land`, chain id `onyx-1`). Change it with ⚙ or
   with `?rpc=…&chainId=…&realm=…&web=…`.
@@ -39,36 +46,48 @@ network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag)
   width, keeper size, keeper agility, shot speed; choosing a margin suggests its pot and fee), play an
   open one (pays its fee),
   continue your shootout, top up a pot, cancel your unplayed game for a refund, resign, or end a
-  challenger's shootout once they have been idle past the timeout. *Details* shows the settings and
-  every challenger's kicks, with links to gnoweb.
+  challenger's shootout once they have been idle past the timeout. *Details* shows the margin, the
+  settings and every challenger's score, with the kicks of a shootout in play (an ended one keeps
+  only its score on chain: *settled*), and links to gnoweb.
 - **A kick on chain:** you aim and strike, or plan your keeper, exactly as offline. Your move is
   sent as the realm's integers (mm, milli-radii, per-mille, four uint16), and the realm settles it in
-  that block: the chain's move and the mishit come from SHA-256 of the block time (see the realm's
-  README for why that is not yet safe for real stakes). Adena only broadcasts, so the page then reads
+  that block: SHA-256 of the block time and the kick's identity picks the chain's move from its
+  mixes and is the mishit seed (see the realm's README for why that is not yet safe for real
+  stakes). Adena only broadcasts, so the page then reads
   the transaction from the node's `/tx` endpoint for the kick the realm returned, and replays those
   ten inputs and that seed in the 3-D engine.
 - **Who decides:** the realm runs this engine, ported to gno (`penalty/physics/v0`) with
   bit-identical results, so the replay is exactly the chain's kick; the report shows the chain's
-  verdict and confirms the replay matches it. Games with non-default constants are badged: the
-  realm plays them with their constants, the replay with the defaults.
-- **Cost:** 30–70M gas for a typical kick on chain, ~0.36B at worst. The chain charges the
-  fee for the gas limit, so each kick pays for 0.7B (0.7 GNOT at 1 ugnot per 1000 gas, the
-  price on both gnodev and Onyx) plus ~0.3 GNOT of storage deposit, which comes back on the
-  move that ends the shootout: the realm then keeps only its score (see the realm's README,
-  Storage), and the lobby shows such a shootout as *settled*.
+  verdict and confirms the replay matches it. Games with changed settings are badged: the
+  realm plays them with their settings, the replay with the standard ones.
+- **Cost:** a kick uses 30–70M gas typically, ~0.36B at worst. The chain charges the fee for
+  the gas limit Adena sets (1 ugnot per 1000 gas on Onyx and gnodev): with the multiplier at 1.4,
+  about 0.1–0.2 GNOT a kick (0.13 GNOT on average, measured on Onyx), so 0.7–1.5 GNOT a
+  shootout plus the entry fee. Each kick also locks a ~0.3 GNOT storage deposit, which comes
+  back with the move that ends the shootout: the realm then keeps only its score (see the
+  realm's README, Storage), and the lobby shows such a shootout as *settled*.
+- **About the game** (lobby) tells the realm side of the story: on-chain physics bit-identical to
+  the browser, writing for the VM's gas model, the upgradeable realms, storage deposits and
+  refunds, the equilibrium opponent and the Onyx deployment.
 - `src/chain.js` (RPC reads, Adena, transactions) and `src/lobby.js` (lobby UI) are the whole
   integration.
 
 ## Round bytes
 
-Every kick's randomness is 32 bytes, sealed before you choose and revealed after.
-The last 24 are the mishit seed of whoever kicks. Since impl/v3 the computer's
-move is picked by bytes 0–1 from its mixes (`src/chainplay.js`: a keeper plan,
-or a kick in the realm's units), as the chain picks its own; the tables below
-describe how a keeper plan's four uint16 decode, and how impl/v1 and v2 read
-the first eight bytes as the move itself (`penalty.Seed`).
+Every kick's randomness is 32 bytes (offline: sealed before you choose and
+revealed after; on chain: the seed of the block the move lands in). Bytes 0–1
+pick the computer's move from its mixes (`src/chainplay.js`, the same tables
+as the realm's impl/v3): a keeper plan when you shoot, a kick when you keep.
+Bytes 8–31 are the mishit seed of whoever kicks; bytes 2–7 are unused.
 
-**You shoot** — the computer keeps (`decodeRound(bytes)` → `{ plan, strikeSeed }`):
+| The computer's mix | |
+| --- | --- |
+| Keeper (when you shoot) | waits and reads the shot 34%; attacks the ball, diving forward to one side at 4.8–5.2 m/s, mid-height 40%, collapsing low 26% (mirrored left and right) |
+| Kick (when you keep) | low and hard 2.2 m out 41%; top corners, curled in, 39%; high down the middle 17%; mid-height 2.1 m out 3% |
+
+A keeper plan is four uint16s, yours or the computer's, and decodes like this
+(`decodePlan`); the realm's impl/v1 and v2 read the computer's whole move from
+bytes 0–7 this way (`decodeRound` → `{ plan, strikeSeed }`):
 
 | Bytes | Meaning | Mapping of v = uint16 / 65535 |
 | --- | --- | --- |
@@ -78,8 +97,8 @@ the first eight bytes as the move itself (`penalty.Seed`).
 | 6–7 | keeper reaction | 0.02 … 0.12 s |
 | 8–31 | mishit seed | two sums of six uint16s give the contact error in x and y |
 
-**You keep** — the computer shoots (`decodeTakerShot(bytes)` → `{ input, ints }`, integer
-mm / per-mille / milli-radii exactly as `penalty.Seed.ChainShot`):
+and the computer's kick from bytes 0–7 this way (`decodeTakerShot(bytes)` → `{ input, ints }`,
+integer mm / per-mille / milli-radii exactly as `penalty.Seed.ChainShot`):
 
 | Bytes | Meaning | Mapping |
 | --- | --- | --- |
@@ -100,8 +119,9 @@ independent of the mishit. They scale with how early the keeper moves (`KEEPER.M
 | Committed dive: sideways speed / jump (by reaction, 20 → 120 ms) | ±0.6 / ±0.6 m/s | ±0.12 / ±0.12 m/s |
 
 The read's error keeps shrinking as it watches, so the hands still close in on the ball. Against the
-computer's kicks this makes reaction a real choice: with a dive aimed at the right spot, saves rise
-from 76% at 20 ms to 83% at 95 ms; waiting to read peaks around 70 ms (54% → 56% → 50% at 120 ms).
+computer's kicks (its mix, which aims for the corners at pace), a dive to the right spot keeps out
+about 57% at any reaction, and waiting to read works best early: 22% at 20 ms, 18% at 70 ms, 14% at
+120 ms.
 `simulateShot(input, plan, { misread: false })` gives a perfect read for analysis.
 
 Your keeper plan is four uint16s too: the UI's choice goes through `encodePlan` and back
@@ -234,8 +254,9 @@ on chain as `gno-shots-realm/…/penalty/physics/v0`, bit for bit — see *On-ch
   the on-chain port relies on them for gas.
 - **Determinism**: inside the loop only `+ − × ÷`, `sqrt`, `min/max/abs/round` and
   `imul` are used. These are exactly rounded in IEEE-754, and the dive angle goes through
-  a polynomial `detSin`, so results are bit-identical across JS engines. The plan is
-  committed with a hash before the shot, together with that round's mishit seed, and each shot is re-simulated to check its state hash.
+  a polynomial `detSin`, so results are bit-identical across JS engines. Offline, the
+  computer's move and the round's mishit seed are committed with a hash before the shot and
+  revealed after, and each shot is re-simulated to check its state hash.
 
 ## On-chain port
 

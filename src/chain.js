@@ -19,12 +19,15 @@ const DEFAULTS = {
 const STORE_KEY = 'spotkick.network';
 
 export const DENOM = 'ugnot';
-// Gas limits. A kick runs the whole physics engine on chain: typically
-// 30-70M gas, ~0.36B at worst (a ball scrambling near the keeper, out of
-// pouncing range, for most of the 2.5 s cap), so kicks ask for 0.7B. The
-// chain charges the limit times its gas price in full, used or not, so it is
-// not padded further.
+// Gas limits asked of the wallet. A kick runs the whole physics engine on
+// chain: typically 30-70M gas, ~0.36B at worst (a ball scrambling near the
+// keeper, out of pouncing range, for most of the 2.5 s cap). Adena ignores
+// these: it simulates the call and sets the limit from that run times its
+// network fee multiplier, and a kick's gas depends on the block it lands in
+// (its seed), not on the simulated one. Hence the advice shown to players:
+// set the multiplier to FEE_MULTIPLIER on every transaction.
 export const GAS = { wanted: 60_000_000, kick: 700_000_000 };
+export const FEE_MULTIPLIER = 1.4;
 
 // Network settings: URL parameters, then saved settings, then the defaults.
 export function loadNetwork() {
@@ -283,6 +286,9 @@ function hashToHex(h) {
 
 // The message of a failed query or transaction result.
 const errorOf = (base) => {
+  if (/OutOfGas|out of gas/i.test(JSON.stringify(base.Error ?? '') + (base.Log ?? ''))) {
+    return `The transaction ran out of gas, so nothing was played (the fee is spent). In Adena, set the network fee multiplier to ${FEE_MULTIPLIER} and try again.`;
+  }
   const msg = base.Error?.value || cleanError(base.Log || JSON.stringify(base.Error));
   const line = String(msg).split('\n')[0];
   return line.length > 220 ? `${line.slice(0, 220)}…` : line;

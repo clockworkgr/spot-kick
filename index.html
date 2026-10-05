@@ -69,7 +69,7 @@
         </section>
       </div>
       <section id="keeper-card" class="card keeper-card" hidden>
-        <h3>Your keeper <small>· the kick is already sealed</small></h3>
+        <h3>Your keeper <small id="keeper-note">· the kick is already sealed</small></h3>
         <div class="seg">
           <button data-mode="guess" class="on">Pick a spot <kbd>1</kbd></button>
           <button data-mode="read">Wait &amp; read <kbd>2</kbd></button>
@@ -116,11 +116,13 @@
     <div class="lobby-body">
       <div class="hero">
         <h1>Beat the chain.<br /><span>Take the pot.</span></h1>
-        <p>Pay a game's entry fee, then shoot five and keep five against the chain. Beat it by the game's margin (1, 2 or 3 goals) and 80% of the pot is yours (20% goes to the game's creator); otherwise your fee stays in it for the next challenger.</p>
-        <p class="fine">Every kick is settled in the block it lands in: the chain's move and the mishit come from SHA-256 of the block time, and the realm runs the same physics engine as this page, bit for bit, so the 3-D replay is exactly what the chain decided. Running the physics on chain is heavy: each kick's fee covers a 0.7B gas limit (0.7 GNOT at gnodev prices) plus ~0.3 GNOT of storage.</p>
+        <p>Pay a game's entry fee, then take turns shooting and keeping against the chain, up to five kicks each (a win-by-1 game can go to sudden death). Beat it by the game's margin (1, 2 or 3 goals) and 80% of the pot is yours (20% goes to the game's creator); otherwise your fee stays in it for the next challenger.</p>
+        <div class="notice"><b>Important, on every transaction:</b> in Adena's confirmation window, set the <b>network fee multiplier to 1.4</b> before you approve. Adena sizes the gas from a trial run in an earlier block, but a kick's gas depends on the block it lands in, so at the default it often runs out: the transaction then fails, nothing is played and the fee is spent.</div>
+        <p class="fine">Every kick is settled in the block it lands in: the chain's move (from its equilibrium mix) and the mishit come from SHA-256 of the block time, and the realm runs the same physics engine as this page, bit for bit, so the 3-D replay is exactly what the chain decided. Each kick costs about 0.1–0.2 GNOT in gas and a ~0.3 GNOT storage deposit, which comes back with the move that ends your shootout.</p>
         <div class="hero-actions">
           <button id="create-btn" class="primary">Create a game</button>
           <button id="practice-btn">Practice offline</button>
+          <button id="about-btn">About the game</button>
         </div>
         <div id="resume"></div>
       </div>
@@ -183,11 +185,30 @@
     </form>
   </dialog>
 
+  <dialog id="about-dialog" class="about">
+    <h2>About Spot Kick</h2>
+    <p>Spot Kick is a showcase for <b>gno.land</b>: a game whose every outcome is decided by a realm, a smart contract written in <b>Gno</b>. When you strike the ball or plan your dive, the realm plays the whole kick out on chain, in the transaction that makes it: a rigid-body simulation at 1,000 steps a second of the strike, the ball's spin and flight, the posts and net, and a keeper that reads the shot, dives, catches or parries. Then it updates the score and pays out the pot.</p>
+    <h3>A physics engine on chain, bit for bit</h3>
+    <p>The engine is a Gno package, a port of the one this page runs, and both return the <b>same bits</b>. Gno is a deterministic, interpreted Go: its VM does floating point in software with exact IEEE rounding and no fused multiply-adds, so a line-by-line port that keeps every operation in order reproduces the browser exactly. The 3-D replay you watch is therefore exactly what the chain decided, and the result panel checks it. Hundreds of kicks are verified inside the Gno VM and tens of thousands more natively.</p>
+    <h3>Written for the VM's gas model</h3>
+    <p>Gno meters every operation, and a full simulation per transaction has to be affordable. We profiled the VM per opcode and per line, and rewrote the hot paths to its cost model without changing a single result: a bit-exact square root at a fraction of <code>math.Sqrt</code>'s cost, inlined helpers, locals instead of field chains, and work skipped wherever it provably cannot change the outcome. A typical kick now costs 30–70M gas.</p>
+    <h3>Realms, boundaries and upgrades</h3>
+    <p>The game is split into realms, gno.land's stateful packages. A permanent realm holds the games, the sessions and the coins in the pots, and exposes the entry points. The rules live in separate implementation realms behind an upgradeable proxy. The admin accepts a new one, and can roll it back, while every game and pot stays where it is. Spot Kick has shipped three: v1, the first rules; v2, which reclaims storage; and v3, the current game. The VM enforces realm boundaries: an implementation can reach the state only through a gate that checks the caller's live realm, and objects belong to the realm that created them. Coins move with the realm's own banker: entry fees into the pot, then 80% of the pot to the winner and 20% to the game's creator.</p>
+    <h3>Storage you pay for, and get back</h3>
+    <p>gno.land charges a deposit for every byte a realm stores. Each kick is recorded on chain while a shootout is in play, about 3 KB and a 0.3 GNOT deposit. When the shootout ends, the realm keeps only its score and frees the rest, and the VM refunds that deposit to the player in the same transaction. Every kick stays in the chain's history, where anyone can re-run it.</p>
+    <h3>A fair opponent</h3>
+    <p>The chain doesn't play at random, which a practised player would beat almost every time. It draws its moves from the <b>equilibrium</b> of the shooter-against-keeper game, which we solved with the same physics engine: no shot beats its keeper more than about 79% of the time, close to real penalties. Each game's creator chooses how much a challenger must win by. With a two-goal margin, a skilled player wins about 11% of shootouts, so pots grow over many challengers before someone takes them.</p>
+    <h3>Live on the Onyx testnet</h3>
+    <p>The realm runs on gno.land's <b>Onyx</b> testnet (<code>onyx-1</code>), where new code is checked and approved before it goes live. Its pages render straight from the realm on gnoweb. One honest caveat: the randomness for each kick comes from a hash of the block time, which is fine for play money but not for real stakes. A commit-reveal scheme or a VRF can replace it with a new implementation, without touching a single game or pot.</p>
+    <p class="about-links"><a id="about-realm" target="_blank" rel="noopener">The realm on gnoweb ↗</a> · <a href="https://github.com/clockworkgr/spot-kick" target="_blank" rel="noopener">This web app on GitHub ↗</a> · <a href="https://gno.land" target="_blank" rel="noopener">gno.land ↗</a></p>
+    <div class="dialog-actions"><button type="button" data-close>Close</button></div>
+  </dialog>
+
   <dialog id="game-dialog">
     <div class="body"></div>
     <div class="dialog-actions"><button type="button" data-close>Close</button></div>
   </dialog>
 
-  <script type="module" src="src/main.js?v=21"></script>
+  <script type="module" src="src/main.js?v=23"></script>
 </body>
 </html>
