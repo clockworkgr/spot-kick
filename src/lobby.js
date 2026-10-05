@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=23';
+import * as C from './chain.js?v=24';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -337,7 +337,11 @@ export function initLobby(h) {
   $('practice-btn').addEventListener('click', () => hooks.onPractice());
   $('about-btn').addEventListener('click', () => {
     $('about-realm').href = C.webLink();
-    $('about-dialog').showModal();
+    const d = $('about-dialog');
+    d.showModal();
+    // Opening focuses the Close button at the bottom, which scrolls there.
+    d.scrollTop = 0;
+    requestAnimationFrame(() => (d.scrollTop = 0));
   });
   $('net-settings').addEventListener('click', openSettings);
   $('create-form').addEventListener('submit', submitCreate);
