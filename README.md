@@ -32,7 +32,7 @@ accepts the latest implementation (impl/v3). Named namespaces such as `clockwork
 the script rewrites `gno.land/{p,r}/clockwork` on the way. Its gnokey must match the
 network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag).
 
-- **Important: on every transaction, set Adena's network fee multiplier to 1.4** in its
+- **Important: on every transaction, set Adena's network fee multiplier to 1.5 or higher** in its
   confirmation window before approving. Adena ignores the gas limit the page asks for and sizes
   it from a trial run in an earlier block, but a kick's gas depends on the block it lands in
   (its seed decides the kick), so at the default multiplier kicks often run out of gas: the
@@ -61,7 +61,7 @@ network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag)
   verdict and confirms the replay matches it. Games with changed settings are badged: the
   realm plays them with their settings, the replay with the standard ones.
 - **Cost:** a kick uses 30–70M gas typically, ~0.36B at worst. The chain charges the fee for
-  the gas limit Adena sets (1 ugnot per 1000 gas on Onyx and gnodev): with the multiplier at 1.4,
+  the gas limit Adena sets (1 ugnot per 1000 gas on Onyx and gnodev): with the multiplier at 1.5,
   about 0.1–0.2 GNOT a kick (0.13 GNOT on average, measured on Onyx), so 0.7–1.5 GNOT a
   shootout plus the entry fee. Each kick also locks a ~0.3 GNOT storage deposit, which comes
   back with the move that ends the shootout: the realm then keeps only its score (see the

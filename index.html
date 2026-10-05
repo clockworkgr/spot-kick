@@ -117,7 +117,7 @@
       <div class="hero">
         <h1>Beat the chain.<br /><span>Take the pot.</span></h1>
         <p>Pay a game's entry fee, then take turns shooting and keeping against the chain, up to five kicks each (a win-by-1 game can go to sudden death). Beat it by the game's margin (1, 2 or 3 goals) and 80% of the pot is yours (20% goes to the game's creator); otherwise your fee stays in it for the next challenger.</p>
-        <div class="notice"><b>Important, on every transaction:</b> in Adena's confirmation window, set the <b>network fee multiplier to 1.4</b> before you approve. Adena sizes the gas from a trial run in an earlier block, but a kick's gas depends on the block it lands in, so at the default it often runs out: the transaction then fails, nothing is played and the fee is spent.</div>
+        <div class="notice"><b>Important, on every transaction:</b> in Adena's confirmation window, set the <b>network fee multiplier to 1.5 or higher</b> before you approve. Adena sizes the gas from a trial run in an earlier block, but a kick's gas depends on the block it lands in, so at the default it often runs out: the transaction then fails, nothing is played and the fee is spent.</div>
         <p class="faucet">Need GNOT to play? Get free testnet GNOT at the <a href="https://faucet.gno.land" target="_blank" rel="noopener">gno.land faucet ↗</a>: choose the <b>Onyx</b> faucet (<code>onyx-1</code>) and paste your Adena address.</p>
         <p class="fine">Every kick is settled in the block it lands in: the chain's move (from its equilibrium mix) and the mishit come from SHA-256 of the block time, and the realm runs the same physics engine as this page, bit for bit, so the 3-D replay is exactly what the chain decided. Each kick costs about 0.1–0.2 GNOT in gas and a ~0.3 GNOT storage deposit, which comes back with the move that ends your shootout.</p>
         <div class="hero-actions">
@@ -210,6 +210,6 @@
     <div class="dialog-actions"><button type="button" data-close>Close</button></div>
   </dialog>
 
-  <script type="module" src="src/main.js?v=25"></script>
+  <script type="module" src="src/main.js?v=26"></script>
 </body>
 </html>

@@ -27,7 +27,7 @@ export const DENOM = 'ugnot';
 // (its seed), not on the simulated one. Hence the advice shown to players:
 // set the multiplier to FEE_MULTIPLIER on every transaction.
 export const GAS = { wanted: 60_000_000, kick: 700_000_000 };
-export const FEE_MULTIPLIER = 1.4;
+export const FEE_MULTIPLIER = '1.5 or higher';
 
 // Network settings: URL parameters, then saved settings, then the defaults.
 export function loadNetwork() {

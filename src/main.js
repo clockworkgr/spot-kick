@@ -7,15 +7,15 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as P from './physics.js?v=25';
+import * as P from './physics.js?v=26';
 import { buildWorld, addHitbox, hitboxes, capsuleGeometry, placeSegment } from './scene.js';
 import { Humanoid } from './rig.js?v=4';
-import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=25';
-import * as KP from './keeperplan.js?v=25';
-import * as SO from './shootout.js?v=25';
-import * as CP from './chainplay.js?v=25';
-import * as C from './chain.js?v=25';
-import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=25';
+import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=26';
+import * as KP from './keeperplan.js?v=26';
+import * as SO from './shootout.js?v=26';
+import * as CP from './chainplay.js?v=26';
+import * as C from './chain.js?v=26';
+import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=26';
 
 const { BALL, GOAL, NET, KICK, SIM } = P;
 

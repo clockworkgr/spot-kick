@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=25';
+import * as C from './chain.js?v=26';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
