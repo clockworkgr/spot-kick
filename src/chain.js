@@ -76,11 +76,27 @@ export function parseGnoValue(text) {
 }
 
 // Evaluates an expression in the realm, e.g. `ListGames("open",0,50)`.
-export async function qeval(expr) {
-  const r = await rpc('abci_query', { path: '"vm/qeval"', data: `0x${hexOf(`${net.realm}.${expr}`)}` });
-  const base = r.response.ResponseBase;
-  if (base.Error) throw new Error(errorOf(base));
-  return parseGnoValue(fromB64(base.Data));
+//
+// With a height, the realm as of that block or later. A public RPC can be
+// several nodes behind one address, a block or so apart, so a read right
+// after a transaction may reach one that has not applied it yet and see the
+// realm from before it. A node refuses a height it has not reached (and
+// otherwise answers from its latest state), so the read is retried until it
+// reaches one that has the block.
+export async function qeval(expr, { height } = {}) {
+  const params = { path: '"vm/qeval"', data: `0x${hexOf(`${net.realm}.${expr}`)}` };
+  if (height) params.height = String(height);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await rpc('abci_query', params);
+      const base = r.response.ResponseBase;
+      if (base.Error) throw new Error(errorOf(base));
+      return parseGnoValue(fromB64(base.Data));
+    } catch (e) {
+      if (!height || attempt >= 30) throw e;
+      await new Promise((ok) => setTimeout(ok, 500));
+    }
+  }
 }
 
 const gs = (s) => JSON.stringify(String(s)); // a Go string literal for qeval
@@ -91,12 +107,12 @@ export async function status() {
 }
 export const listGames = async (statusFilter = '', offset = 0, limit = 100) =>
   JSON.parse(await qeval(`ListGames(${gs(statusFilter)},${offset},${limit})`));
-export async function getGame(id) {
-  const js = await qeval(`GameJSON(${id})`);
+export async function getGame(id, at) {
+  const js = await qeval(`GameJSON(${id})`, at);
   return js ? JSON.parse(js) : null;
 }
-export async function getSession(id, no) {
-  const js = await qeval(`SessionJSON(${id},${no})`);
+export async function getSession(id, no, at) {
+  const js = await qeval(`SessionJSON(${id},${no})`, at);
   return js ? JSON.parse(js) : null;
 }
 export const describeEngine = async () => {
@@ -323,11 +339,30 @@ export const cancelGame = (id, onStatus) => call('CancelGame', [id], { onStatus 
 export const forfeit = (id, onStatus) => call('Forfeit', [id], { onStatus });
 
 // A kick lands when the session has one more kick than before: its JSON,
-// as the realm's own return value would have been.
+// as the realm's own return value would have been. A shootout that ended
+// keeps no kicks (impl/v2 settles it), so the deciding kick is taken from
+// its block instead.
 const kickLanded = (id, no, before) => async () => {
   const s = await getSession(id, no);
-  return s && s.kicks.length > before ? JSON.stringify(s.kicks[s.kicks.length - 1]) : null;
+  if (!s) return null;
+  if (s.kicks.length > before) return JSON.stringify(s.kicks[s.kicks.length - 1]);
+  if (s.status !== 'playing' && !s.kicks.length && s.endHeight) return kickInBlock(id, no, s.endHeight);
+  return null;
 };
+
+// The kick of game id, session no played in block height: the return value
+// of the transaction whose Kick event names them.
+export async function kickInBlock(id, no, height) {
+  const r = await rpc('block_results', { height: String(height) });
+  for (const t of r.results?.deliver_tx || []) {
+    const base = t.ResponseBase || {};
+    const ours = (base.Events || []).some((e) => e.type === 'Kick' &&
+      e.attrs?.some((a) => a.key === 'game' && a.value === String(id)) &&
+      e.attrs?.some((a) => a.key === 'session' && a.value === String(no)));
+    if (ours && !base.Error) return parseGnoValue(fromB64(base.Data));
+  }
+  return null;
+}
 
 // The kick as the realm returns it (see kickJSON in the realm's views.gno).
 // at = { no, kicks }: the session and its number of kicks before this move.

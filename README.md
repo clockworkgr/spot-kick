@@ -17,13 +17,13 @@ It is published at <https://clockworkgr.github.io/spot-kick/> (GitHub Pages, str
 [faucet](https://faucet.gno.land). To develop against a local chain:
 
 ```
-tools/devchain.sh g1youradenaaddress    # gnodev + the realm, impl/v1 accepted, your address funded
+tools/devchain.sh g1youradenaaddress    # gnodev + the realm, impl/v2 accepted, your address funded
 python3 -m http.server 8000             # then open http://localhost:8000/?rpc=http://127.0.0.1:26657&chainId=dev&realm=gno.land/r/clockwork/shots&web=http://127.0.0.1:8888&name=Local%20gnodev
 ```
 
 `tools/deploy.sh <gnokey-key>` deploys the packages and realm to a public network (Onyx by
 default) under that key's address namespace, with that address as the realm's Admin, and
-accepts impl/v1. Named namespaces such as `clockwork` cannot be registered on Onyx yet, so
+accepts the latest implementation (impl/v2). Named namespaces such as `clockwork` cannot be registered on Onyx yet, so
 the script rewrites `gno.land/{p,r}/clockwork` on the way. Its gnokey must match the
 network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag).
 
@@ -47,7 +47,9 @@ network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag)
   realm plays them with their constants, the replay with the defaults.
 - **Cost:** 30–70M gas for a typical kick on chain, ~0.36B at worst. The chain charges the
   fee for the gas limit, so each kick pays for 0.7B (0.7 GNOT at 1 ugnot per 1000 gas, the
-  price on both gnodev and Onyx) plus ~0.3 GNOT of storage.
+  price on both gnodev and Onyx) plus ~0.3 GNOT of storage deposit, which comes back on the
+  move that ends the shootout: the realm then keeps only its score (see the realm's README,
+  Storage), and the lobby shows such a shootout as *settled*.
 - `src/chain.js` (RPC reads, Adena, transactions) and `src/lobby.js` (lobby UI) are the whole
   integration.
 

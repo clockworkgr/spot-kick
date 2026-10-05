@@ -7,14 +7,14 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as P from './physics.js?v=18';
+import * as P from './physics.js?v=19';
 import { buildWorld, addHitbox, hitboxes, capsuleGeometry, placeSegment } from './scene.js';
 import { Humanoid } from './rig.js?v=4';
-import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=18';
-import * as KP from './keeperplan.js?v=18';
-import * as SO from './shootout.js?v=18';
-import * as C from './chain.js?v=18';
-import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=18';
+import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=19';
+import * as KP from './keeperplan.js?v=19';
+import * as SO from './shootout.js?v=19';
+import * as C from './chain.js?v=19';
+import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=19';
 
 const { BALL, GOAL, NET, KICK, SIM } = P;
 
@@ -247,6 +247,13 @@ function startPractice() {
 
 // The scoreboard's view of a chain session.
 const chainOutcome = (o) => (o === 'woodwork' ? 'post' : o);
+
+// An ended shootout keeps only its score on chain (impl/v2 clears its kicks,
+// refunding their storage): the page shows it with the kicks it saw played.
+function settledView(s, kicks) {
+  if (!s || s.status === 'playing' || s.kicks.length) return s;
+  return { ...s, kicks };
+}
 function syncFromSession(s) {
   game.shootout = SO.createShootout();
   game.outcomes = { player: [], cpu: [] };
@@ -426,11 +433,13 @@ async function chainMove() {
   $('dock').classList.add('waiting');
   const id = game.chain.game.id;
   try {
-    // Catch up first if a move landed that this page did not see through.
+    // Catch up first if a move landed that this page did not see through
+    // (only forwards: a node behind the others can answer with older books).
     const fresh = await C.getSession(id, game.chain.session.no);
-    if (fresh && (fresh.kicks.length !== game.chain.session.kicks.length || fresh.status !== 'playing')) {
-      game.chain.session = fresh;
-      syncFromSession(fresh);
+    const seen = game.chain.session.kicks.length;
+    if (fresh && (fresh.kicks.length > seen || fresh.status !== 'playing')) {
+      game.chain.session = settledView(fresh, game.chain.session.kicks);
+      syncFromSession(game.chain.session);
       renderScore();
       $('dock').classList.remove('waiting');
       toast('Your previous move had already landed on chain: caught up with it.', 'info', 5000);
@@ -443,8 +452,10 @@ async function chainMove() {
       ? await C.takeShot(id, shotInts(), txStatus('Your kick'), at)
       : await C.submitKeeperPlan(id, keep.solved.raw, txStatus('Your keeper plan'), at);
     toast(`In block ${kick.height.toLocaleString()} · seed ${kick.seed.slice(0, 10)}…`, 'good', 2500);
-    const [g, s] = await Promise.all([C.getGame(id), C.getSession(id, game.chain.session.no)]);
-    game.chain.after = { game: g, session: s };
+    // The books as of the kick's block (not whatever a lagging node holds).
+    const atKick = { height: kick.height };
+    const [g, s] = await Promise.all([C.getGame(id, atKick), C.getSession(id, game.chain.session.no, atKick)]);
+    game.chain.after = { game: g, session: settledView(s, [...game.chain.session.kicks, kick]) };
     const sh = kick.shot;
     const input = {
       aim: { x: sh.aimX / 1000, y: sh.aimY / 1000 },
@@ -464,9 +475,9 @@ async function chainMove() {
     state = prev;
     // The move may have landed even if waiting for it failed.
     C.getSession(id, game.chain.session.no).then((s) => {
-      if (s && s.kicks.length > game.chain.session.kicks.length) {
-        game.chain.session = s;
-        syncFromSession(s);
+      if (s && (s.kicks.length > game.chain.session.kicks.length || s.status !== 'playing')) {
+        game.chain.session = settledView(s, game.chain.session.kicks);
+        syncFromSession(game.chain.session);
         newRound();
       }
     }).catch(() => {});

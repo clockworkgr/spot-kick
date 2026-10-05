@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Deploys the Spot Kick packages and realm to a public gno.land network, under
 # the deploying key's address namespace (gno.land/{p,r}/<g1addr>/...), with
-# that address as the realm's Admin, then accepts impl/v1.
+# that address as the realm's Admin, then accepts the latest implementation
+# (impl/v2) unless it is already live. Upgrading an existing deployment is the
+# same run: what is live is skipped, the new implementation is deployed and
+# accepted (the key must then be the realm's Admin).
 #
 #   tools/deploy.sh <key-name>                     # onyx-1 by default
 #   CHAIN_ID=... RPC=... tools/deploy.sh <key-name>
@@ -42,6 +45,7 @@ pkgs=(
   p/clockwork/penalty/physics/v0
   r/clockwork/shots
   r/clockwork/shots/impl/v1
+  r/clockwork/shots/impl/v2
 )
 for p in "${pkgs[@]}"; do
   mkdir -p "$stage/$p"
@@ -94,8 +98,17 @@ for p in "${pkgs[@]}"; do
 done
 
 shots="gno.land/r/$addr/shots"
-echo "accepting $shots/impl/v1"
-printf '%s\n' "$pw" | "$gnokey" maketx call -pkgpath "$shots" -func Accept -args "$shots/impl/v1" \
-  -gas-fee 100000ugnot -gas-wanted 100000000 -broadcast -chainid "$chain" -remote "$rpc" \
-  -insecure-password-stdin -quiet "$key"
-echo "done: realm $shots on $chain"
+impl="$shots/impl/v2"
+livePath="$(curl -sf "$rpc/abci_query?path=%22vm/qeval%22&data=0x$(printf '%s' "$shots.LivePath()" | xxd -p | tr -d '\n')" |
+  python3 -c 'import sys, json, base64
+r = json.load(sys.stdin)["result"]["response"]["ResponseBase"]
+print(base64.b64decode(r["Data"] or b"").decode())')"
+if [[ "$livePath" == *"\"$impl\""* ]]; then
+  echo "$impl: already the live implementation"
+else
+  echo "accepting $impl"
+  printf '%s\n' "$pw" | "$gnokey" maketx call -pkgpath "$shots" -func Accept -args "$impl" \
+    -gas-fee 100000ugnot -gas-wanted 100000000 -broadcast -chainid "$chain" -remote "$rpc" \
+    -insecure-password-stdin -quiet "$key"
+fi
+echo "done: realm $shots on $chain, live implementation $impl"

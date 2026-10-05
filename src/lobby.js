@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=18';
+import * as C from './chain.js?v=19';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -133,7 +133,7 @@ function card(g) {
   }
   return `<article class="game ${g.status}${you ? ' yours' : ''}">
     <header><b>#${g.id}</b><span class="status ${g.status}">${g.status}</span>${custom ? '<span class="badge" title="Played with non-default constants; the 3-D replay uses the default ones">custom constants</span>' : ''}${mine ? '<span class="badge mine">yours</span>' : ''}</header>
-    <div class="pot"><small>Pot</small>${C.gnot(g.pot)}</div>
+    <div class="pot"><small>${g.status === 'won' ? 'Prize' : 'Pot'}</small>${g.status === 'won' && !g.pot ? 'paid out' : C.gnot(g.pot)}</div>
     <div class="meta">Entry <b>${C.gnot(g.entryFee)}</b> · ${g.sessions} challenger${g.sessions === 1 ? '' : 's'} · timeout ${g.timeoutBlocks} blocks · by ${C.short(g.creator)}</div>
     ${live}
     <div class="actions">${actions.join('')}</div>
@@ -184,10 +184,13 @@ async function act(name, id) {
     }
     if (name === 'join') {
       if (wallet.balance && wallet.balance < g.entryFee + await C.feeFor(C.GAS.wanted)) throw new Error('Not enough GNOT for the entry fee and gas.');
-      await C.joinGame(g.id, g.entryFee, txStatus(`Joining game #${g.id}`));
+      const r = await C.joinGame(g.id, g.entryFee, txStatus(`Joining game #${g.id}`));
       toast(`Joined game #${g.id}. Good luck!`, 'good', 2500);
-      const fresh = await C.getGame(g.id);
-      const s = await C.getSession(g.id, fresh.sessions);
+      // As of the join's block: a node behind the others would still show
+      // the game without this session (and its previous challenger's).
+      const at = r.height ? { height: r.height } : undefined;
+      const fresh = await C.getGame(g.id, at);
+      const s = await C.getSession(g.id, fresh.sessions, at);
       await refreshBalance();
       return hooks.onPlay(fresh, s);
     }
@@ -230,7 +233,7 @@ async function showDetails(g) {
     `<tr class="${v !== def[k] ? 'diff' : ''}"><td>${k}</td><td>${v} ${C.CONFIG_BOUNDS[k]?.[2] || ''}</td><td>${v !== def[k] ? `default ${def[k]}` : ''}</td></tr>`).join('');
   d.querySelector('.body').innerHTML = `
     <h2>Game #${g.id} <span class="status ${g.status}">${g.status}</span></h2>
-    <p>Pot <b>${C.gnot(g.pot)}</b> · entry ${C.gnot(g.entryFee)} · timeout ${g.timeoutBlocks} blocks · created at block ${g.createdHeight} by <code>${g.creator}</code></p>
+    <p>${g.status === 'won' ? (g.pot ? `Prize <b>${C.gnot(g.pot)}</b>` : 'Prize paid out') : `Pot <b>${C.gnot(g.pot)}</b>`} · entry ${C.gnot(g.entryFee)} · timeout ${g.timeoutBlocks} blocks · created at block ${g.createdHeight} by <code>${g.creator}</code></p>
     <p><a href="${C.webLink(`game/${g.id}`)}" target="_blank" rel="noopener">Open on gnoweb ↗</a></p>
     <h3>Challengers</h3><div id="sessions-list">${g.sessions ? '<p class="muted">Loading…</p>' : '<p class="muted">Nobody has played yet.</p>'}</div>
     <h3>Constants</h3><table class="cfg">${rows}</table>`;
@@ -241,7 +244,11 @@ async function showDetails(g) {
   const el = d.querySelector('#sessions-list');
   if (!el) return;
   el.innerHTML = `<table class="sessions"><tr><th>#</th><th>Player</th><th>Status</th><th>Score</th><th>Kicks</th></tr>${list.filter(Boolean).map((s) => {
-    const dots = s.kicks.map((k) => `<i class="${k.kicker} ${k.result.outcome === 'woodwork' ? 'post' : k.result.outcome}" title="round ${k.round}, ${k.kicker === 'player' ? 'shot' : 'kept'}: ${k.result.outcome}"></i>`).join('');
+    // An ended shootout keeps only its score (impl/v2); its kicks stay in
+    // the transactions that played them.
+    const dots = !s.kicks.length && s.status !== 'playing'
+      ? `<span class="muted" title="Settled: only the score is kept on chain; each kick is in the transaction that played it">settled</span>`
+      : s.kicks.map((k) => `<i class="${k.kicker} ${k.result.outcome === 'woodwork' ? 'post' : k.result.outcome}" title="round ${k.round}, ${k.kicker === 'player' ? 'shot' : 'kept'}: ${k.result.outcome}"></i>`).join('');
     return `<tr><td><a href="${C.webLink(`game/${g.id}/${s.no}`)}" target="_blank" rel="noopener">${s.no}</a></td><td>${s.player === wallet.address ? 'you' : C.short(s.player)}</td><td>${s.status}</td><td>${s.score.playerGoals}–${s.score.chainGoals}</td><td class="kdots">${dots}</td></tr>`;
   }).join('')}</table>`;
 }
