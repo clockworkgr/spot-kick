@@ -19,7 +19,7 @@ The page opens on a **lobby** for the Spot Kick realm (`../gno-shots-realm`); **
 It is published at <https://clockworkgr.github.io/spot-kick/> (GitHub Pages, straight from
 `main`) and plays the realm deployed on the Onyx testnet (`onyx-1`) at
 `gno.land/r/g1lnkytfqcjwllws63gvf0mv9yt04aswy4y9amhm/shots`; test GNOT come from the
-[faucet](https://faucet.gno.land). To develop against a local chain:
+[gno.land faucet](https://faucet.gno.land) (choose the Onyx faucet, `onyx-1`; the lobby links to it). To develop against a local chain:
 
 ```
 tools/devchain.sh g1youradenaaddress    # gnodev + the realm, impl/v3 accepted, your address funded

@@ -8,7 +8,7 @@
 // returned has been through P.encodePlan and P.decodePlan, so it is exactly
 // what four uint16s decode to. Nothing here affects a simulation beyond
 // choosing the plan.
-import * as P from './physics.js?v=24';
+import * as P from './physics.js?v=25';
 
 const { PLAN } = P;
 // Heading of every dive, degrees off the goal line towards the taker.

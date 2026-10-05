@@ -4,7 +4,7 @@
 // on this physics engine for the default constants (a double oracle): no
 // shot scores more than about 79% against the keeper mix, no keeper plan
 // concedes less than about 77% to the kick mix.
-import * as P from './physics.js?v=24';
+import * as P from './physics.js?v=25';
 
 // cum: cumulative weight out of 65536; raw: the plan's four uint16.
 export const CHAIN_KEEPER = [
