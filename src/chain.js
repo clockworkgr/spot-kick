@@ -136,18 +136,50 @@ export async function balanceOf(addr) {
 export const DEFAULT_CONFIG = 'goalWidth=6555,goalHeight=2424,keeperScale=1176,reactionMin=20,reactionMax=120,' +
   'starShare=60,readShare=240,diveMin=2600,diveMax=5200,jumpMin=-1400,jumpMax=4000,ballMinSpeed=10000,' +
   'ballMaxSpeed=34000,fuzzBase=30,fuzzPower=100,maxContact=500';
-export const CONFIG_BOUNDS = {
-  goalWidth: [5000, 7320, 'mm'], goalHeight: [1800, 2440, 'mm'], keeperScale: [900, 1300, '‰'],
-  reactionMin: [0, 300, 'ms'], reactionMax: [0, 400, 'ms'], starShare: [0, 300, '‰'], readShare: [0, 700, '‰'],
-  diveMin: [1500, 7000, 'mm/s'], diveMax: [1500, 7000, 'mm/s'], jumpMin: [-2500, 0, 'mm/s'], jumpMax: [0, 5000, 'mm/s'],
-  ballMinSpeed: [5000, 40000, 'mm/s'], ballMaxSpeed: [5000, 40000, 'mm/s'], fuzzBase: [0, 150, 'mR'],
-  fuzzPower: [0, 300, 'mR'], maxContact: [200, 800, 'mR'],
-};
+// What a game's creator may change, as the realm allows it (impl/v3's
+// checkConstants): four settings, a little either way. The chain plays the
+// equilibrium of the default game, and every change opens a gap a skilled
+// player can use; within these ranges they win 11-14% of shootouts (11% by
+// default). Each maps onto the realm's constants exactly.
+export const SETTINGS = [
+  { key: 'goal', name: 'Goal width', unit: 'm', min: 6.4, max: 7.0, step: 0.05, standard: 6.555, help: 'between the posts',
+    toConfig: (v) => ({ goalWidth: Math.round(v * 1000) }), fromConfig: (c) => c.goalWidth / 1000 },
+  { key: 'keeper', name: 'Keeper size', unit: '%', min: 95, max: 105, step: 1, standard: 100, help: 'of a standard keeper',
+    toConfig: (v) => ({ keeperScale: Math.round((1176 * v) / 100) }), fromConfig: (c) => Math.round(c.keeperScale / 11.76) },
+  { key: 'agility', name: 'Keeper agility', unit: '%', min: 90, max: 105, step: 1, standard: 100, help: 'how fast it dives',
+    toConfig: (v) => ({ diveMin: 26 * v, diveMax: 52 * v }), fromConfig: (c) => Math.round(c.diveMax / 52) },
+  { key: 'shot', name: 'Shot speed', unit: '%', min: 100, max: 110, step: 1, standard: 100, help: 'a full-power kick: 122 km/h at 100%',
+    toConfig: (v) => ({ ballMaxSpeed: 340 * v }), fromConfig: (c) => Math.round(c.ballMaxSpeed / 340) },
+];
+
+// The realm's config string for setting values ({ key: value }): only what
+// differs from the defaults.
+export function configFromSettings(values) {
+  const def = parseConfig(DEFAULT_CONFIG);
+  const out = {};
+  for (const s of SETTINGS) Object.assign(out, s.toConfig(values[s.key] ?? s.standard));
+  return Object.entries(out).filter(([k, v]) => v !== def[k]).map(([k, v]) => `${k}=${v}`).join(',');
+}
+
+// A game's settings as the creator chose them, and whether any other
+// constant differs (games made before impl/v3 could change them all).
+export function settingsOf(config) {
+  const c = parseConfig(config);
+  const def = parseConfig(DEFAULT_CONFIG);
+  const mine = new Set(['goalWidth', 'keeperScale', 'diveMin', 'diveMax', 'ballMaxSpeed']);
+  return {
+    rows: SETTINGS.map((s) => ({ ...s, value: s.fromConfig(c), changed: Object.entries(s.toConfig(s.fromConfig(c))).some(([k]) => c[k] !== def[k]) })),
+    other: Object.keys(def).filter((k) => !mine.has(k) && c[k] !== def[k]).map((k) => `${k}=${c[k]}`),
+  };
+}
 export const parseConfig = (s) => Object.fromEntries(s.split(',').filter(Boolean).map((kv) => {
   const [k, v] = kv.split('=');
   return [k.trim(), Number(v)];
 }));
 export const isDefaultConfig = (s) => s === DEFAULT_CONFIG;
+
+// impl/v3: the winner is paid the pot less the creator's share.
+export const CREATOR_PERCENT = 20;
 
 // ------------------------------------------------------------------ wallet
 

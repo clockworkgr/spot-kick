@@ -2,7 +2,7 @@
 # Deploys the Spot Kick packages and realm to a public gno.land network, under
 # the deploying key's address namespace (gno.land/{p,r}/<g1addr>/...), with
 # that address as the realm's Admin, then accepts the latest implementation
-# (impl/v2) unless it is already live. Upgrading an existing deployment is the
+# (impl/v3) unless it is already live. Upgrading an existing deployment is the
 # same run: what is live is skipped, the new implementation is deployed and
 # accepted (the key must then be the realm's Admin).
 #
@@ -46,6 +46,7 @@ pkgs=(
   r/clockwork/shots
   r/clockwork/shots/impl/v1
   r/clockwork/shots/impl/v2
+  r/clockwork/shots/impl/v3
 )
 for p in "${pkgs[@]}"; do
   mkdir -p "$stage/$p"
@@ -98,7 +99,7 @@ for p in "${pkgs[@]}"; do
 done
 
 shots="gno.land/r/$addr/shots"
-impl="$shots/impl/v2"
+impl="$shots/impl/v3"
 livePath="$(curl -sf "$rpc/abci_query?path=%22vm/qeval%22&data=0x$(printf '%s' "$shots.LivePath()" | xxd -p | tr -d '\n')" |
   python3 -c 'import sys, json, base64
 r = json.load(sys.stdin)["result"]["response"]["ResponseBase"]

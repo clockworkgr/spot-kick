@@ -1,10 +1,12 @@
 # Spot Kick
 
 A 3-D penalty shootout against the computer. You take a kick, then go in goal
-for the computer's kick, round after round: five kicks each, finishing early
-once one side cannot be caught, then sudden death (`src/shootout.js`, the same
-rules as the realm's `penalty.Shootout`). Whichever side is not yours is
-decided **before** you choose: its move is sealed (hashed) and revealed after.
+for the computer's kick, round after round: five kicks each at most, no sudden
+death, and you win only by two goals or more; it ends as soon as that is
+certain either way (`src/shootout.js`, the same rules as the realm's impl/v3).
+Whichever side is not yours is decided **before** you choose: its move is
+sealed (hashed) and revealed after. The computer plays the chain's
+equilibrium mixes (`src/chainplay.js`, see the realm's README, Economics).
 
 ## Playing on gno.land
 
@@ -17,13 +19,13 @@ It is published at <https://clockworkgr.github.io/spot-kick/> (GitHub Pages, str
 [faucet](https://faucet.gno.land). To develop against a local chain:
 
 ```
-tools/devchain.sh g1youradenaaddress    # gnodev + the realm, impl/v2 accepted, your address funded
+tools/devchain.sh g1youradenaaddress    # gnodev + the realm, impl/v3 accepted, your address funded
 python3 -m http.server 8000             # then open http://localhost:8000/?rpc=http://127.0.0.1:26657&chainId=dev&realm=gno.land/r/clockwork/shots&web=http://127.0.0.1:8888&name=Local%20gnodev
 ```
 
 `tools/deploy.sh <gnokey-key>` deploys the packages and realm to a public network (Onyx by
 default) under that key's address namespace, with that address as the realm's Admin, and
-accepts the latest implementation (impl/v2). Named namespaces such as `clockwork` cannot be registered on Onyx yet, so
+accepts the latest implementation (impl/v3). Named namespaces such as `clockwork` cannot be registered on Onyx yet, so
 the script rewrites `gno.land/{p,r}/clockwork` on the way. Its gnokey must match the
 network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag).
 
@@ -31,9 +33,10 @@ network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag)
   (default: Onyx, `https://rpc.onyx.testnets.gno.land`, chain id `onyx-1`). Change it with ⚙ or
   with `?rpc=…&chainId=…&realm=…&web=…`.
 - **Lobby:** every game the realm holds, with tabs for open, in play, finished and yours. You can
-  create a game (pot, entry fee, idle timeout, optional constants), play an open one (pays its fee),
+  create a game (pot, entry fee, idle timeout, and four small settings: goal width, keeper size,
+  keeper agility, shot speed), play an open one (pays its fee),
   continue your shootout, top up a pot, cancel your unplayed game for a refund, resign, or end a
-  challenger's shootout once they have been idle past the timeout. *Details* shows the constants and
+  challenger's shootout once they have been idle past the timeout. *Details* shows the settings and
   every challenger's kicks, with links to gnoweb.
 - **A kick on chain:** you aim and strike, or plan your keeper, exactly as offline. Your move is
   sent as the realm's integers (mm, milli-radii, per-mille, four uint16), and the realm settles it in
@@ -56,8 +59,11 @@ network's gno release (`tools/bin/gnokey-onyx`, built from the `chain/onyx` tag)
 ## Round bytes
 
 Every kick's randomness is 32 bytes, sealed before you choose and revealed after.
-The first eight are the computer's move, the last 24 the mishit seed of
-whoever kicks — the same layout as `penalty.Seed` in `gno-shots-realm`.
+The last 24 are the mishit seed of whoever kicks. Since impl/v3 the computer's
+move is picked by bytes 0–1 from its mixes (`src/chainplay.js`: a keeper plan,
+or a kick in the realm's units), as the chain picks its own; the tables below
+describe how a keeper plan's four uint16 decode, and how impl/v1 and v2 read
+the first eight bytes as the move itself (`penalty.Seed`).
 
 **You shoot** — the computer keeps (`decodeRound(bytes)` → `{ plan, strikeSeed }`):
 

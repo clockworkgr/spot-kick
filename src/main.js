@@ -7,14 +7,15 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as P from './physics.js?v=19';
+import * as P from './physics.js?v=20';
 import { buildWorld, addHitbox, hitboxes, capsuleGeometry, placeSegment } from './scene.js';
 import { Humanoid } from './rig.js?v=4';
-import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=19';
-import * as KP from './keeperplan.js?v=19';
-import * as SO from './shootout.js?v=19';
-import * as C from './chain.js?v=19';
-import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=19';
+import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=20';
+import * as KP from './keeperplan.js?v=20';
+import * as SO from './shootout.js?v=20';
+import * as CP from './chainplay.js?v=20';
+import * as C from './chain.js?v=20';
+import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=20';
 
 const { BALL, GOAL, NET, KICK, SIM } = P;
 
@@ -200,7 +201,7 @@ const POWER_SWEEP = 0.85; // seconds for the meter to go 0 -> 100%
 // One shootout at a time; the player shoots and then keeps in every round.
 // Each kick gets its own 32 round bytes: on the player's kicks they are the
 // computer's keeper plan and the player's mishit seed, on the computer's
-// kicks they are its whole kick (P.decodeTakerShot), as on chain.
+// kicks they are its whole kick (picked from its mix, src/chainplay.js), as on chain.
 const game = {
   mode: 'practice',   // 'practice' (offline, sealed local bytes) | 'chain' (a realm game)
   chain: null,        // chain mode: { game, session, after } (after = session once the kick lands)
@@ -300,7 +301,8 @@ function newRound() {
     game.shootoutNo++;
   }
   game.side = SO.nextSide(game.shootout);
-  // All of the kick's randomness: 8 bytes of the computer's move + a 24-byte mishit seed.
+  // All of the kick's randomness: the computer's move (picked by bytes 0-1,
+  // as the chain picks its own) and a 24-byte mishit seed.
   game.bytes = fixedSeed != null
     ? P.roundBytesFromSeed(fixedSeed, game.kick)
     : crypto.getRandomValues(new Uint8Array(P.ROUND_BYTES));
@@ -308,11 +310,11 @@ function newRound() {
   const pill = $('commit');
   pill.classList.remove('revealed');
   if (game.side === 'player') {
-    ({ plan: game.plan, strikeSeed: game.strikeSeed } = P.decodeRound(game.bytes));
+    ({ plan: game.plan, strikeSeed: game.strikeSeed } = CP.keeperFromBytes(game.bytes));
     game.cpu = null;
     pill.innerHTML = `<span class="dot"></span>Keeper's plan and your mishit are sealed · <code>#${game.commit}</code>`;
   } else {
-    game.cpu = P.decodeTakerShot(game.bytes);
+    game.cpu = CP.kickFromBytes(game.bytes);
     game.plan = null;
     game.strikeSeed = null;
     pill.innerHTML = `<span class="dot"></span>The computer's kick is sealed · <code>#${game.commit}</code>`;
@@ -379,7 +381,7 @@ function renderScore() {
   $('score-player').textContent = sc.player;
   $('score-cpu').textContent = sc.cpu;
   const label = game.mode === 'chain' ? `Game <b>#${game.chain.game.id}</b>` : `Shootout <b>${game.shootoutNo}</b>`;
-  const stage = SO.winner(so) ? 'Final' : SO.suddenDeath(so) ? 'Sudden death' : `Round <b>${Math.min(SO.round(so), SO.REGULATION)}</b>`;
+  const stage = SO.winner(so) ? 'Final' : `Round <b>${Math.min(SO.round(so), SO.REGULATION)}</b> · win by ${SO.WIN_MARGIN}`;
   $('round-label').innerHTML = `${label} · ${stage}`;
   const w = SO.winner(so);
   $('turn').className = w ? `over ${w}` : game.side;
@@ -1061,11 +1063,19 @@ function headline(r, side, chainKick = null) {
   return { ...out, title: t, detail: out.outcome === 'save' ? out.detail.replace("the keeper's", 'your') : out.detail };
 }
 
-// Re-derives the sealed bytes from what was played and checks the hash.
+// The sealed bytes, if they give exactly what was played (else zeros, so the
+// commit check fails).
 function revealedBytes() {
-  if (shot.side === 'player') return P.encodeRound(shot.sim.plan.raw, shot.input.seed);
-  const again = P.decodeTakerShot(game.bytes).input;
-  const same = JSON.stringify({ ...again, seed: [...again.seed] }) === JSON.stringify({ ...shot.input, seed: [...shot.input.seed] });
+  const seedOf = (x) => [...x];
+  let same;
+  if (shot.side === 'player') {
+    const again = CP.keeperFromBytes(game.bytes);
+    same = JSON.stringify(again.plan.raw) === JSON.stringify(shot.sim.plan.raw) &&
+      JSON.stringify(seedOf(again.strikeSeed)) === JSON.stringify(seedOf(shot.input.seed));
+  } else {
+    const again = CP.kickFromBytes(game.bytes).input;
+    same = JSON.stringify({ ...again, seed: seedOf(again.seed) }) === JSON.stringify({ ...shot.input, seed: seedOf(shot.input.seed) });
+  }
   return same ? game.bytes : new Uint8Array(P.ROUND_BYTES);
 }
 
@@ -1128,9 +1138,14 @@ function fillReport() {
   const sc = SO.score(game.shootout);
   const onChain = game.mode === 'chain' && !!shot.chain;
   let status;
-  if (onChain && game.chain.session.status === 'won') status = `You beat the chain ${sc.player}–${sc.cpu} and won the pot!`;
-  else if (onChain && game.chain.session.status !== 'playing') status = `The chain wins ${sc.cpu}–${sc.player}; your fee stays in the pot.`;
-  else if (w) status = `${w === 'player' ? 'You win' : 'The computer wins'} the shootout ${sc.player}–${sc.cpu}.`;
+  const twoNeeded = sc.player >= sc.cpu ? ` A win needs two goals' margin.` : '';
+  if (onChain && game.chain.session.status === 'won') {
+    const pot = game.chain.game.pot;
+    const cut = Math.floor((pot * C.CREATOR_PERCENT) / 100);
+    status = `You beat the chain ${sc.player}–${sc.cpu} and won ${C.gnot(pot - cut)} (the ${C.gnot(pot)} pot less ${C.CREATOR_PERCENT}% for its creator)!`;
+  } else if (onChain && game.chain.session.status !== 'playing') {
+    status = `${sc.player}–${sc.cpu}: the chain keeps the pot, and your fee stays in it.${twoNeeded}`;
+  } else if (w) status = `${w === 'player' ? 'You win' : 'The computer wins'} the shootout ${sc.player}–${sc.cpu}.${w === 'cpu' ? twoNeeded : ''}`;
   else status = `${sc.player}–${sc.cpu}. Next: ${SO.nextSide(game.shootout) === 'player' ? 'you shoot' : 'you keep'}.`;
 
   $('report-title').className = h.outcome;
@@ -1178,8 +1193,8 @@ function fillReport() {
     </dl>` : '';
   const sealed = k
     ? (side === 'player'
-      ? `${onChainHtml}<h4>Your strike</h4>${strike}<h4>The chain's keeper (seed bytes 0–7)</h4><p>${P.describePlan(sim.plan)}.</p>${plan}`
-      : `${onChainHtml}<h4>Your keeper</h4><p>${P.describePlan(sim.plan)}.</p>${plan}<h4>The chain's kick (seed bytes 0–7)</h4>${strike}`)
+      ? `${onChainHtml}<h4>Your strike</h4>${strike}<h4>The chain's keeper (its mix, picked by seed bytes 0–1)</h4><p>${P.describePlan(sim.plan)}.</p>${plan}`
+      : `${onChainHtml}<h4>Your keeper</h4><p>${P.describePlan(sim.plan)}.</p>${plan}<h4>The chain's kick (its mix, picked by seed bytes 0–1)</h4>${strike}`)
     : side === 'player'
     ? `<h4>Your strike</h4>${strike}
     <h4>Sealed before the shot</h4>
@@ -1188,7 +1203,7 @@ function fillReport() {
       <dt>Plan uint16s</dt><dd>${sim.plan.raw.join(' · ')}</dd>
       ${misread}
       <dt>Mishit seed</dt><dd class="hex">${P.toHex(shot.input.seed)}</dd>
-      <dt>Round bytes</dt><dd class="hex">${P.toHex(P.encodeRound(sim.plan.raw, shot.input.seed))}</dd>
+      <dt>Round bytes</dt><dd class="hex">${P.toHex(game.bytes)}</dd>
       <dt>Commit</dt><dd>#${game.commit}</dd>
     </dl>`
     : `<h4>Your keeper</h4>

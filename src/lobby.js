@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=19';
+import * as C from './chain.js?v=20';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -227,16 +227,18 @@ async function act(name, id) {
 
 async function showDetails(g) {
   const d = $('game-dialog');
-  const cfg = C.parseConfig(g.config);
-  const def = C.parseConfig(C.DEFAULT_CONFIG);
-  const rows = Object.entries(cfg).map(([k, v]) =>
-    `<tr class="${v !== def[k] ? 'diff' : ''}"><td>${k}</td><td>${v} ${C.CONFIG_BOUNDS[k]?.[2] || ''}</td><td>${v !== def[k] ? `default ${def[k]}` : ''}</td></tr>`).join('');
+  const st = C.settingsOf(g.config);
+  const fmt = (s, v) => (s.unit === 'm' ? `${v.toFixed(2)} m` : `${v}%`);
+  const rows = st.rows.map((s) =>
+    `<tr class="${s.changed ? 'diff' : ''}"><td>${s.name}</td><td>${fmt(s, s.value)}</td><td>${s.changed ? `standard ${fmt(s, s.standard)}` : ''}</td></tr>`).join('') +
+    (st.other.length ? `<tr class="diff"><td>Other</td><td colspan="2">${esc(st.other.join(', '))}</td></tr>` : '');
   d.querySelector('.body').innerHTML = `
     <h2>Game #${g.id} <span class="status ${g.status}">${g.status}</span></h2>
     <p>${g.status === 'won' ? (g.pot ? `Prize <b>${C.gnot(g.pot)}</b>` : 'Prize paid out') : `Pot <b>${C.gnot(g.pot)}</b>`} · entry ${C.gnot(g.entryFee)} · timeout ${g.timeoutBlocks} blocks · created at block ${g.createdHeight} by <code>${g.creator}</code></p>
     <p><a href="${C.webLink(`game/${g.id}`)}" target="_blank" rel="noopener">Open on gnoweb ↗</a></p>
     <h3>Challengers</h3><div id="sessions-list">${g.sessions ? '<p class="muted">Loading…</p>' : '<p class="muted">Nobody has played yet.</p>'}</div>
-    <h3>Constants</h3><table class="cfg">${rows}</table>`;
+    <p class="muted">Win the shootout by two goals or more to take the pot: ${100 - C.CREATOR_PERCENT}% to the winner, ${C.CREATOR_PERCENT}% to the game's creator.</p>
+    <h3>Settings</h3><table class="cfg">${rows}</table>`;
   d.showModal();
   if (!g.sessions) return;
   const nos = Array.from({ length: Math.min(g.sessions, 20) }, (_, i) => g.sessions - i);
@@ -258,9 +260,8 @@ function openCreate() {
   const d = $('create-dialog');
   const box = d.querySelector('#cfg-fields');
   if (!box.childElementCount) {
-    const def = C.parseConfig(C.DEFAULT_CONFIG);
-    box.innerHTML = Object.entries(C.CONFIG_BOUNDS).map(([k, [lo, hi, unit]]) =>
-      `<label>${k}<input type="number" name="${k}" min="${lo}" max="${hi}" value="${def[k]}"><small>${lo}…${hi} ${unit}</small></label>`).join('');
+    box.innerHTML = C.SETTINGS.map((s) =>
+      `<label>${s.name}<input type="number" name="set-${s.key}" min="${s.min}" max="${s.max}" step="${s.unit === 'm' ? 'any' : s.step}" value="${s.standard}"><small>${s.min}–${s.max} ${s.unit}, ${s.help}</small></label>`).join('');
   }
   d.showModal();
 }
@@ -271,18 +272,23 @@ async function submitCreate(e) {
   const pot = Math.round(Number(f.pot.value) * 1e6);
   const fee = Math.round(Number(f.fee.value) * 1e6);
   const timeout = Math.round(Number(f.timeout.value));
-  const def = C.parseConfig(C.DEFAULT_CONFIG);
-  const changed = [...f.querySelectorAll('#cfg-fields input')]
-    .filter((i) => Number(i.value) !== def[i.name])
-    .map((i) => `${i.name}=${Math.round(Number(i.value))}`);
+  const values = {};
   const err = f.querySelector('.err');
   err.textContent = '';
+  for (const s of C.SETTINGS) {
+    const v = Number(f[`set-${s.key}`].value);
+    if (!(v >= s.min - 1e-9 && v <= s.max + 1e-9)) return (err.textContent = `${s.name} must be ${s.min}–${s.max} ${s.unit}.`);
+    values[s.key] = s.unit === 'm' ? v : Math.round(v);
+  }
   if (!(pot >= 1e6)) return (err.textContent = 'The pot must be at least 1 GNOT.');
   if (!(fee >= 1e5)) return (err.textContent = 'The entry fee must be at least 0.1 GNOT.');
   if (!(timeout >= 30 && timeout <= 200000)) return (err.textContent = 'Timeout must be 30 … 200000 blocks.');
+  // A pot only grows if challengers pay in a fair share of it; below ~15% the
+  // creator usually loses the seed before the 20% comes back (see README).
+  if (fee < 0.15 * pot && !confirm(`An entry fee under 15% of the pot (here ${C.gnot(Math.ceil(0.15 * pot))}) usually costs the creator money: the pot is won before it has grown enough for the ${C.CREATOR_PERCENT}% share to pay back the seed. Create it anyway?`)) return;
   $('create-dialog').close();
   try {
-    const r = await C.createGame(fee, timeout, changed.join(','), pot, txStatus('Creating the game'));
+    const r = await C.createGame(fee, timeout, C.configFromSettings(values), pot, txStatus('Creating the game'));
     toast(`Game #${r.value} created with a ${C.gnot(pot)} pot.`, 'good');
     view.tab = 'open';
     await refreshBalance();

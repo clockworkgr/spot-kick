@@ -1,8 +1,9 @@
-// Shootout scoring, the same rules as the realm's penalty.Shootout: the
-// player kicks first in every round; five kicks each, ending as soon as one
-// side cannot be caught; level after that, sudden-death rounds until one side
-// scores and the other does not.
+// Shootout scoring, the same rules as the realm's impl/v3: the player kicks
+// first in every round; five kicks each at most, no sudden death; the player
+// wins only by WIN_MARGIN goals or more, and it ends as soon as that is
+// certain either way.
 export const REGULATION = 5;
+export const WIN_MARGIN = 2;
 
 export function createShootout() {
   return { player: [], cpu: [] }; // per kick: true = scored
@@ -19,21 +20,17 @@ export function record(s, side, scored) {
   s[side].push(scored);
 }
 
-// 'player' | 'cpu' | null while undecided.
+// 'player' | 'cpu' | null while undecided: the player once they are sure to
+// finish WIN_MARGIN ahead, the computer once they no longer can.
 export function winner(s) {
-  const pk = s.player.length;
-  const ck = s.cpu.length;
   const pg = goals(s.player);
   const cg = goals(s.cpu);
-  if (pk <= REGULATION && ck <= REGULATION) {
-    if (pg > cg + REGULATION - ck) return 'player';
-    if (cg > pg + REGULATION - pk) return 'cpu';
-    return null;
-  }
-  if (pk === ck && pg !== cg) return pg > cg ? 'player' : 'cpu';
+  const playerLeft = REGULATION - s.player.length;
+  const cpuLeft = REGULATION - s.cpu.length;
+  if (pg - (cg + cpuLeft) >= WIN_MARGIN) return 'player';
+  if (pg + playerLeft - cg < WIN_MARGIN) return 'cpu';
   return null;
 }
 
 export const score = (s) => ({ player: goals(s.player), cpu: goals(s.cpu) });
 export const round = (s) => s.cpu.length + 1;
-export const suddenDeath = (s) => s.cpu.length >= REGULATION;

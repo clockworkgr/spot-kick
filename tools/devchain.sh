@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local chain for the web UI: gnodev with the Spot Kick realm, impl/v2
+# Local chain for the web UI: gnodev with the Spot Kick realm, impl/v3
 # accepted, and optional extra accounts funded (e.g. your Adena address).
 #
 #   tools/devchain.sh [g1youraddress ...]
@@ -19,7 +19,7 @@ for a in "$@"; do accounts+=(-add-account "$a=100000000000ugnot"); done
 
 cd "$realm"
 gnodev local -chain-id dev -empty-blocks \
-  -paths gno.land/r/clockwork/shots,gno.land/r/clockwork/shots/impl/v2 \
+  -paths gno.land/r/clockwork/shots,gno.land/r/clockwork/shots/impl/v3 \
   ${accounts[@]+"${accounts[@]}"} &
 
 until curl -sf "$rpc/status" >/dev/null; do sleep 1; done
@@ -28,7 +28,7 @@ test1='source bonus chronic canvas draft south burst lottery vacant surface solv
 printf '%s\n\n\n' "$test1" | gnokey add test1 -recover -home "$keys" -insecure-password-stdin >/dev/null 2>&1 \
   || printf '%s\n' "$test1" | gnokey add test1 -recover -home "$keys" -insecure-password-stdin >/dev/null
 echo '' | gnokey maketx call -pkgpath gno.land/r/clockwork/shots -func Accept \
-  -args gno.land/r/clockwork/shots/impl/v2 -gas-fee 1000000ugnot -gas-wanted 50000000 \
+  -args gno.land/r/clockwork/shots/impl/v3 -gas-fee 1000000ugnot -gas-wanted 50000000 \
   -broadcast -chainid dev -remote "$rpc" -home "$keys" -insecure-password-stdin test1
 echo "Spot Kick realm live on $rpc (chain id dev). Ctrl-C to stop."
 wait

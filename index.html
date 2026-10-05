@@ -116,7 +116,7 @@
     <div class="lobby-body">
       <div class="hero">
         <h1>Beat the chain.<br /><span>Take the pot.</span></h1>
-        <p>Pay a game's entry fee, then shoot five and keep five against the chain. Win the shootout and the whole pot is yours; lose and your fee stays in it for the next challenger.</p>
+        <p>Pay a game's entry fee, then shoot five and keep five against the chain. Beat it by two goals or more and 80% of the pot is yours (20% goes to the game's creator); otherwise your fee stays in it for the next challenger.</p>
         <p class="fine">Every kick is settled in the block it lands in: the chain's move and the mishit come from SHA-256 of the block time, and the realm runs the same physics engine as this page, bit for bit, so the 3-D replay is exactly what the chain decided. Running the physics on chain is heavy: each kick's fee covers a 0.7B gas limit (0.7 GNOT at gnodev prices) plus ~0.3 GNOT of storage.</p>
         <div class="hero-actions">
           <button id="create-btn" class="primary">Create a game</button>
@@ -141,14 +141,14 @@
   <dialog id="create-dialog">
     <form id="create-form" method="dialog">
       <h2>Create a game</h2>
-      <p class="muted">You seed the pot. Challengers pay the entry fee into it; the first to beat the chain takes it all. You can cancel for a refund until someone plays.</p>
+      <p class="muted">You seed the pot. Challengers pay the entry fee into it; the first to beat the chain by two goals takes 80% of it, and you get the other 20%. Expect a few dozen challengers before that: an entry fee of about a fifth of the pot pays you back best. You can cancel for a refund until someone plays.</p>
       <div class="grid3">
         <label>Pot<input name="pot" type="number" min="1" step="0.1" value="10" /><small>GNOT, at least 1</small></label>
-        <label>Entry fee<input name="fee" type="number" min="0.1" step="0.1" value="1" /><small>GNOT, at least 0.1</small></label>
+        <label>Entry fee<input name="fee" type="number" min="0.1" step="0.1" value="2" /><small>GNOT, at least 0.1; about 20% of the pot</small></label>
         <label>Timeout<input name="timeout" type="number" min="30" max="200000" step="1" value="1000" /><small>idle blocks before anyone may end a shootout</small></label>
       </div>
       <details>
-        <summary>Constants <small>(the 3-D replay always uses the defaults)</small></summary>
+        <summary>Settings <small>(small changes only; the 3-D replay uses the standard ones)</small></summary>
         <div id="cfg-fields" class="grid3"></div>
       </details>
       <p class="err"></p>
@@ -180,6 +180,6 @@
     <div class="dialog-actions"><button type="button" data-close>Close</button></div>
   </dialog>
 
-  <script type="module" src="src/main.js?v=19"></script>
+  <script type="module" src="src/main.js?v=20"></script>
 </body>
 </html>
