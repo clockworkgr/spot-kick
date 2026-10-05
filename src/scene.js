@@ -3,7 +3,7 @@
 // back into the simulation.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import * as P from './physics.js?v=26';
+import * as P from './physics.js?v=27';
 import { surfaceTexture, contactShadow, addTurf, crowdTier, roofStructure } from './visuals.js';
 
 const { BALL, GOAL, NET } = P;

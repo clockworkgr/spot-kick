@@ -1,7 +1,7 @@
 // The lobby: wallet connection, the realm's games, and creating, joining,
 // topping up, cancelling and forfeiting them. Playing a joined game is
 // main.js's job; it is handed the game and session through onPlay.
-import * as C from './chain.js?v=26';
+import * as C from './chain.js?v=27';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -337,6 +337,22 @@ export function initLobby(h) {
   $('practice-btn').addEventListener('click', () => hooks.onPractice());
   $('about-btn').addEventListener('click', () => {
     $('about-realm').href = C.webLink();
+    // The deployed realms and packages, by their paths on this network.
+    const ns = C.net.realm.replace(/^gno\.land\/r\//, '').replace(/\/shots$/, '');
+    const link = (kind, path, what) => {
+      const url = `${C.net.web}/${kind}/${ns}/${path}`;
+      return `<li><a href="${url}$source" target="_blank" rel="noopener"><code>${kind}/…/${path}</code></a> ${what}</li>`;
+    };
+    $('about-code').innerHTML = [
+      `<li><a href="${C.webLink()}" target="_blank" rel="noopener"><code>r/…/shots</code></a> the permanent game realm: games, pots and entry points, rendered live (<a href="${C.webLink()}$source" target="_blank" rel="noopener">source</a>)</li>`,
+      link('r', 'shots/impl/v3', 'the live rules engine: the chain\'s mixes, margins and the creator\'s share'),
+      link('r', 'shots/impl/v2', 'the previous engine (storage refunds), kept for rollback'),
+      link('r', 'shots/impl/v1', 'the first engine'),
+      link('p', 'penalty/physics/v0', 'the physics engine, bit-identical to the browser\'s'),
+      link('p', 'penalty/v0', 'the game maths: constants, kick inputs, seeds, shootout scoring'),
+      link('p', 'shootout/v0', 'the state types: games, sessions, kicks'),
+      link('p', 'upgradeable/v0', 'the upgradeable proxy behind the rules engine'),
+    ].join('');
     const d = $('about-dialog');
     d.showModal();
     // Opening focuses the Close button at the bottom, which scrolls there.

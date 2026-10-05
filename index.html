@@ -201,6 +201,8 @@
     <p>The chain doesn't play at random, which a practised player would beat almost every time. It draws its moves from the <b>equilibrium</b> of the shooter-against-keeper game, which we solved with the same physics engine: no shot beats its keeper more than about 79% of the time, close to real penalties. Each game's creator chooses how much a challenger must win by. With a two-goal margin, a skilled player wins about 11% of shootouts, so pots grow over many challengers before someone takes them.</p>
     <h3>Live on the Onyx testnet</h3>
     <p>The realm runs on gno.land's <b>Onyx</b> testnet (<code>onyx-1</code>), where new code is checked and approved before it goes live. Its pages render straight from the realm on gnoweb. One honest caveat: the randomness for each kick comes from a hash of the block time, which is fine for play money but not for real stakes. A commit-reveal scheme or a VRF can replace it with a new implementation, without touching a single game or pot.</p>
+    <h3>The code, live on gnoweb</h3>
+    <ul id="about-code" class="about-code"></ul>
     <p class="about-links"><a id="about-realm" target="_blank" rel="noopener">The realm on gnoweb ↗</a> · <a href="https://github.com/clockworkgr/spot-kick" target="_blank" rel="noopener">This web app on GitHub ↗</a> · <a href="https://gno.land" target="_blank" rel="noopener">gno.land ↗</a></p>
     <div class="dialog-actions"><button type="button" data-close>Close</button></div>
   </dialog>
@@ -210,6 +212,6 @@
     <div class="dialog-actions"><button type="button" data-close>Close</button></div>
   </dialog>
 
-  <script type="module" src="src/main.js?v=26"></script>
+  <script type="module" src="src/main.js?v=27"></script>
 </body>
 </html>

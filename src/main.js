@@ -7,15 +7,15 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as P from './physics.js?v=26';
+import * as P from './physics.js?v=27';
 import { buildWorld, addHitbox, hitboxes, capsuleGeometry, placeSegment } from './scene.js';
 import { Humanoid } from './rig.js?v=4';
-import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=26';
-import * as KP from './keeperplan.js?v=26';
-import * as SO from './shootout.js?v=26';
-import * as CP from './chainplay.js?v=26';
-import * as C from './chain.js?v=26';
-import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=26';
+import { keeperPose, takerPose, createCatchAnimation, createKeeperAnimation, RUNUP } from './animation.js?v=27';
+import * as KP from './keeperplan.js?v=27';
+import * as SO from './shootout.js?v=27';
+import * as CP from './chainplay.js?v=27';
+import * as C from './chain.js?v=27';
+import { initLobby, showLobby, hideLobby, toast, txStatus, refreshBalance } from './lobby.js?v=27';
 
 const { BALL, GOAL, NET, KICK, SIM } = P;
 
@@ -237,8 +237,17 @@ let bannerShown = false;
 
 // ------------------------------------------------------------------ modes
 
+// Keys and the crosshair belong to the game from its first moment, whatever
+// the lobby, a dialog or the wallet's window last had focused.
+canvas.tabIndex = -1;
+function focusGame() {
+  window.focus();
+  canvas.focus({ preventScroll: true });
+}
+
 function startPractice() {
   hideLobby();
+  focusGame();
   game.mode = 'practice';
   game.chain = null;
   game.shootout = SO.createShootout(practiceWinBy);
@@ -269,6 +278,7 @@ function syncFromSession(s) {
 
 function startChain(g, s) {
   hideLobby();
+  focusGame();
   game.mode = 'chain';
   game.chain = { game: g, session: s, after: null, winBy: g.winBy ?? 1 };
   syncFromSession(s);

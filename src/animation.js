@@ -5,7 +5,7 @@
 // Time convention: t = seconds relative to the moment of contact (negative
 // during the run-up), or null while the player is still aiming.
 import * as THREE from 'three';
-import * as P from './physics.js?v=26';
+import * as P from './physics.js?v=27';
 import { sampleKick, captureTime, kickModel } from './kick-motion.js?v=2';
 import { capturedBodyPose, sampleBodyMotion, motionClips } from './body-motion.js';
 import { torsoFrame } from './pose-math.js';
